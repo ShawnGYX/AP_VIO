@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0)
-project(AP_eqvio VERSION 0.1)
+project(AP_VIO VERSION 0.0.1)
 set(CMAKE_CXX_STANDARD 17)
 
 # Set off if you want to build the project in pure cmake
@@ -7,22 +7,82 @@ set(CMAKE_CXX_STANDARD 17)
 
 include(CMakeDependentOption)
 
+find_package(Eigen3 3 REQUIRED)
+find_package(OpenCV REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
-include_directories(
-  include
+
+set(DEFAULT_CONFIG_FILE "EQF_VIO_config_template.yaml")
+get_filename_component(DEFAULT_CONFIG_FILE ${DEFAULT_CONFIG_FILE} ABSOLUTE)
+add_compile_definitions(DEFAULT_CONFIG_FILE="${DEFAULT_CONFIG_FILE}")
+
+option( USE_MARCH_NATIVE "Use the flag -march=native" ON)
+
+if (USE_MARCH_NATIVE AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    include(CheckCXXCompilerFlag)
+    CHECK_CXX_COMPILER_FLAG("-march=native" COMPILER_SUPPORTS_MARCH_NATIVE)
+    if(COMPILER_SUPPORTS_MARCH_NATIVE)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+    else()
+        message("march=native was requested but is not supported.")
+    endif()
+endif()
+
+add_subdirectory(libs)
+
+set(AP_VIO_HEADER_FILES
+    include/eqf_vio/VIOState.h
+    include/eqf_vio/IMUVelocity.h
+    include/eqf_vio/VIOGroup.h
+    include/eqf_vio/VIOFilter.h
+    include/eqf_vio/VIOFilterSettings.h
+    include/eqf_vio/CSVReader.h
+    include/eqf_vio/VisionMeasurement.h
+    include/eqf_vio/EqFMatrices.h
+    include/mavhelper.h
+    )
+set(AP_VIO_SOURCE_FILES
+    src/VIOState.cpp
+    src/VIOGroup.cpp
+    src/VIOFilter.cpp
+    src/VisionMeasurement.cpp
+    src/IMUVelocity.cpp
+    src/EqFMatrices.cpp
+    src/mavhelper.cpp
+)
+
+add_library(ap_vio_lib
+    ${AP_VIO_HEADER_FILES}
+    ${AP_VIO_SOURCE_FILES}
+)
+
+message("This is being included!")
+message(${MODULE_INCLUDE_DIRS})
+
+target_include_directories(ap_vio_lib
+    PUBLIC include
+    PUBLIC ${MODULE_INCLUDE_DIRS}
+    PUBLIC ${EIGEN_INCLUDE_DIRS}
 )
 
 
-## Declare a C++ library
-add_library(uartlib
-  mavhelper.h
-  mavhelper.cpp
+find_package(OpenCV REQUIRED)
+find_package(GIFT REQUIRED)
+
+add_executable(vio src/main.cpp)
+target_link_libraries(vio
+    GIFT
+    ${OpenCV_LIBS}
+    ap_vio_lib
+    ${MODULE_LIBS}
+    yaml-cpp
 )
-
-
-add_executable(uart_test main.cpp)
-target_link_libraries(uart_test
-uartlib
+target_include_directories(vio
+    PRIVATE GIFT::GIFT
+    PRIVATE ${OpenCV_INCLUDE_DIRS}
+    PRIVATE include
+    PRIVATE ${EIGEN_INCLUDE_DIRS}
+    PRIVATE ${YAML_CPP_INCLUDE_DIR}
 )
 
 

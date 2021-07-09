@@ -22,7 +22,7 @@
 
 #define MAVLINK_USE_CONVENIENCE_FUNCTIONS
 
-#include "include/mavlink/mavlink_types.h"
+#include "../include/mavlink/mavlink_types.h"
 mavlink_system_t mavlink_system = {42,11,};
 
 static int dev_fd = -1;

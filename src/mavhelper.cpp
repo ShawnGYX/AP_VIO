@@ -16,12 +16,12 @@
 
 #define MAVLINK_USE_CONVENIENCE_FUNCTIONS
 
-#include "include/mavlink/mavlink_types.h"
+#include "../include/mavlink/mavlink_types.h"
 static mavlink_system_t mavlink_system = {42,11,};
 
 extern void comm_send_ch(mavlink_channel_t chan, uint8_t c);
 
-#include "include/mavlink/ardupilotmega/mavlink.h"
+#include "../include/mavlink/ardupilotmega/mavlink.h"
 
 struct
 {
