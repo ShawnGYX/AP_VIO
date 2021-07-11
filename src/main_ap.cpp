@@ -117,18 +117,18 @@ int main(int argc, const char *argv[])
 {
     
     // Read argument
-    if (argc != 1)
-    {
-        std::cout<< "No configuration file was provided.\n";
-        std::cout<< "Usage: EQVIO_config_file."<<std::endl;
-        return 1;
-    }
-    else if (argc > 1)
-    {
-        std::cout<< "Too many files were provided.\n";
-        std::cout<< "Usage: EQVIO_config_file."<<std::endl;
-        return 1;
-    }
+    // if (argc != 1)
+    // {
+    //     std::cout<< "No configuration file was provided.\n";
+    //     std::cout<< "Usage: EQVIO_config_file."<<std::endl;
+    //     return 1;
+    // }
+    // else if (argc > 1)
+    // {
+    //     std::cout<< "Too many files were provided.\n";
+    //     std::cout<< "Usage: EQVIO_config_file."<<std::endl;
+    //     return 1;
+    // }
     std::string EQVIO_config_fname(argv[1]);
 
     // Load EQVIO configurations
@@ -173,17 +173,19 @@ int main(int argc, const char *argv[])
     int opt;
     const char *devname = NULL;
 
-    while ((opt = getopt(argc, (char * const *)argv, "D:")) != -1) {
-        switch (opt) {
-        case 'D':
-            devname = optarg;
-            break;
-        default:
-            printf("Invalid option '%c'\n", opt);
-            usage();
-            exit(1);
-        }
-    }
+    // while ((opt = getopt(argc, (char * const *)argv, "D:")) != -1) {
+    //     switch (opt) {
+    //     case 'D':
+    //         devname = optarg;
+    //         break;
+    //     default:
+    //         printf("Invalid option '%c'\n", opt);
+    //         usage();
+    //         exit(1);
+    //     }
+    // }
+
+    devname = argv[2];
 
     if (!devname) {
         usage();
