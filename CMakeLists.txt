@@ -11,6 +11,8 @@ find_package(Eigen3 3 REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+
 
 set(DEFAULT_CONFIG_FILE "EQF_VIO_config_template.yaml")
 get_filename_component(DEFAULT_CONFIG_FILE ${DEFAULT_CONFIG_FILE} ABSOLUTE)
@@ -39,8 +41,8 @@ set(AP_VIO_HEADER_FILES
     include/eqf_vio/CSVReader.h
     include/eqf_vio/VisionMeasurement.h
     include/eqf_vio/EqFMatrices.h
-    # include/eqf_vio/dataStream.h
-    include/mavhelper.h
+    include/eqf_vio/dataStream.h
+    # include/mavhelper.h
     )
 set(AP_VIO_SOURCE_FILES
     src/VIOState.cpp
@@ -49,8 +51,8 @@ set(AP_VIO_SOURCE_FILES
     src/VisionMeasurement.cpp
     src/IMUVelocity.cpp
     src/EqFMatrices.cpp
-    src/mavhelper.cpp
-    # src/dataStream.cpp
+    # src/mavhelper.cpp
+    src/dataStream.cpp
 )
 
 add_library(ap_vio_lib

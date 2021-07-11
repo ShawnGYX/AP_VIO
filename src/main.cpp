@@ -108,16 +108,16 @@ int main(int argc, const char *argv[])
         exit(1);
     }
 
-    while (true) {
-        // run at 100Hz
-        usleep(1000*100);
-        int ret = mav_update(dev_fd);
-        update_vp_estimate();
-        if (ret != 0) {
-            printf("Failed mav_update\n");
-            exit(1);
-        }
-    }
+    // while (true) {
+    //     // run at 100Hz
+    //     usleep(1000*100);
+    //     int ret = mav_update(dev_fd);
+    //     // update_vp_estimate();
+    //     if (ret != 0) {
+    //         printf("Failed mav_update\n");
+    //         exit(1);
+    //     }
+    // }
 
     return 0;
 }

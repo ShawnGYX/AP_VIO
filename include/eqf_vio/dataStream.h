@@ -1,13 +1,12 @@
 #pragma once
 
-#ifndef MAVLINK_USE_CONVENIENCE_FUNCTIONS
-#define MAVLINK_USE_CONVENIENCE_FUNCTIONS
 
-#include "eqf_vio/CSVReader.h"
-#include "eqf_vio/IMUVelocity.h"
-#include "eqf_vio/VIOFilter.h"
-#include "eqf_vio/VIOFilterSettings.h"
-#include "eqf_vio/VisionMeasurement.h"
+
+#include "CSVReader.h"
+#include "IMUVelocity.h"
+#include "VIOFilter.h"
+#include "VIOFilterSettings.h"
+#include "VisionMeasurement.h"
 
 // #include "serial_port.h"
 
@@ -41,7 +40,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include <mavhelper.h>
+// #include <mavhelper.h>
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+
 #define MAVLINK_USE_CONVENIENCE_FUNCTIONS
 
 #include "../include/mavlink/mavlink_types.h"
@@ -74,8 +75,8 @@ extern void comm_send_ch(mavlink_channel_t chan, uint8_t c);
 
 class dataStream{
     public:
-    dataStream();
-    ~dataStream();
+    // dataStream();
+    // ~dataStream();
     void startThreads();
     void stopThreads();
     void cam_thread();
@@ -140,4 +141,3 @@ class dataStream{
 
 };
 
-#endif

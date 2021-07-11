@@ -24,12 +24,12 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 
-#include "mavhelper.h"
+// #include "mavhelper.h"
 
 #define MAVLINK_USE_CONVENIENCE_FUNCTIONS
 
 #include "../include/mavlink/mavlink_types.h"
-mavlink_system_t mavlink_system = {42,11,};
+// mavlink_system_t mavlink_system = {42,11,};
 
 static int dev_fd = -1;
 
@@ -45,6 +45,8 @@ static int dev_fd = -1;
 
 #include "yaml-cpp/yaml.h"
 
+
+
 static double get_time_seconds()
 {
     struct timeval tp;
@@ -52,73 +54,7 @@ static double get_time_seconds()
     return (tp.tv_sec + (tp.tv_usec*1.0e-6));
 }
 
-// Record the images
-cv::Mat record_cam(bool indoor_lighting)
-{
-    // Initialize image capture module
-    cv::VideoCapture *cap;
-    cap = new cv::VideoCapture(0);
-    cap->set(cv::CAP_PROP_AUTO_EXPOSURE, 0.25);
 
-    // Adjust exposure
-    float exposure;
-    cv::Mat frame;
-    if (indoor_lighting)
-    {
-        exposure = 0.5;
-    }
-    else
-    {
-        exposure = 0.001;
-    }
-    float gain = 1e-4;
-    for(;;)
-    {
-        cap->read(frame);
-        if (frame.empty())
-        {
-            std::cerr << "Blank frame captured!\n";
-            break;
-        }
-
-        // Set camera exposure
-        cap->set(cv::CAP_PROP_EXPOSURE, exposure);
-
-        cv::Scalar img_mean_s = cv::mean(frame);
-        float img_mean = img_mean_s[0];
-        if (img_mean > 128-32 && img_mean < 128+32)
-        {
-            continue;
-        }
-        exposure += gain * (128 - img_mean) * exposure;
-        if (exposure > 0.7)
-        {
-            exposure = 0.7;
-        }
-        else if (exposure <=0.0)
-        {
-            exposure = 1e-6;
-        }
-    }
-
-    return frame;
-    
-}
-
-VisionMeasurement convertGIFTFeatures(const std::vector<GIFT::Feature>& GIFTFeatures, const double& stamp)
-{
-    VisionMeasurement measurement;
-    measurement.stamp = stamp;
-    measurement.numberOfBearings = GIFTFeatures.size();
-    measurement.bearings.resize(GIFTFeatures.size());
-    std::transform(GIFTFeatures.begin(), GIFTFeatures.end(), measurement.bearings.begin(), [](const GIFT::Feature& f) {
-        Point3d pt;
-        pt.p = f.sphereCoordinates();
-        pt.id = f.idNumber;
-        return pt;
-    });
-    return measurement;
-}
 
 
 void comm_send_ch(mavlink_channel_t chan, uint8_t c)
@@ -214,20 +150,24 @@ int main(int argc, const char *argv[])
     }
     GIFT::PinholeCamera camera = GIFT::PinholeCamera(cv::String(camera_intrinsics_fname));
     GIFT::PointFeatureTracker featureTracker = GIFT::PointFeatureTracker(camera);
-    // dataStream ds;
+    
+    dataStream ds;
+    
+
     VIOFilter::Settings filterSettings(eqf_vioConfig["eqf"]);
     VIOFilter filter = VIOFilter(filterSettings);
 
-    // ds.filter = VIOFilter(filterSettings);
-    // ds.featureTracker = GIFT::PointFeatureTracker(camera);
+    ds.filter = VIOFilter(filterSettings);
+    ds.featureTracker = GIFT::PointFeatureTracker(camera);
 
-    safeConfig(eqf_vioConfig["GIFT"]["maxFeatures"], featureTracker.maxFeatures);
-    safeConfig(eqf_vioConfig["GIFT"]["featureDist"], featureTracker.featureDist);
-    safeConfig(eqf_vioConfig["GIFT"]["minHarrisQuality"], featureTracker.minHarrisQuality);
-    safeConfig(eqf_vioConfig["GIFT"]["featureSearchThreshold"], featureTracker.featureSearchThreshold);
-    safeConfig(eqf_vioConfig["GIFT"]["maxError"], featureTracker.maxError);
-    safeConfig(eqf_vioConfig["GIFT"]["winSize"], featureTracker.winSize);
-    safeConfig(eqf_vioConfig["GIFT"]["maxLevel"], featureTracker.maxLevel);
+    safeConfig(eqf_vioConfig["GIFT"]["maxFeatures"], ds.featureTracker.maxFeatures);
+    safeConfig(eqf_vioConfig["GIFT"]["featureDist"], ds.featureTracker.featureDist);
+    safeConfig(eqf_vioConfig["GIFT"]["minHarrisQuality"], ds.featureTracker.minHarrisQuality);
+    safeConfig(eqf_vioConfig["GIFT"]["featureSearchThreshold"], ds.featureTracker.featureSearchThreshold);
+    safeConfig(eqf_vioConfig["GIFT"]["maxError"], ds.featureTracker.maxError);
+    safeConfig(eqf_vioConfig["GIFT"]["winSize"], ds.featureTracker.winSize);
+    safeConfig(eqf_vioConfig["GIFT"]["maxLevel"], ds.featureTracker.maxLevel);
+    
     
     
     int opt;
@@ -256,16 +196,20 @@ int main(int argc, const char *argv[])
         exit(1);
     }
 
-    while (true) {
-        // run at 100Hz
-        usleep(1000*100);
-        int ret = mav_update(dev_fd);
-        update_vp_estimate();
-        if (ret != 0) {
-            printf("Failed mav_update\n");
-            exit(1);
-        }
-    }
+    ds.fd = dev_fd;
+
+    ds.startThreads();
+
+    // while (true) {
+    //     // run at 100Hz
+    //     usleep(1000*100);
+    //     int ret = mav_update(dev_fd);
+    //     // update_vp_estimate();
+    //     if (ret != 0) {
+    //         printf("Failed mav_update\n");
+    //         exit(1);
+    //     }
+    // }
 
     return 0;
 }

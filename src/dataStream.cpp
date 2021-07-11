@@ -1,5 +1,14 @@
 #include "eqf_vio/dataStream.h"
 
+// #include <mavhelper.h>
+// #define MAVLINK_USE_CONVENIENCE_FUNCTIONS
+
+// #include "mavlink/mavlink_types.h"
+// static mavlink_system_t mavlink_system = {42,11,};
+
+
+// #include "mavlink/ardupilotmega/mavlink.h"
+
 static mavlink_status_t mav_status;
 static uint8_t target_system;
 static double last_msg_s;
@@ -8,47 +17,6 @@ static double last_hb_s;
 float gyro_factor = 1e-3;
 float acc_factor = 9.81 * 1e-3;
 
-
-
-
-int mav_update(int dev_fd)
-{
-    uint8_t b;
-    mavlink_message_t msg;
-
-    mavlink_raw_imu_t raw_imu;
-    
-
-    while (read(dev_fd, &b, 1) == 1) {
-        if (mavlink_parse_char(MAVLINK_COMM_0, b, &msg, &mav_status)) {
-            double tnow = get_time_seconds();
-            if (msg.msgid == MAVLINK_MSG_ID_ATTITUDE) {
-                printf("msgid=%u dt=%f\n", msg.msgid, tnow - last_msg_s);
-                last_msg_s = tnow;
-
-                mavlink_msg_raw_imu_decode(&msg, &raw_imu);
-
-                printf("xacc:%f, yacc:%f, zacc:%f, xgyro:%f, ygyro:%f, zgyro:%f.\n", raw_imu.xacc*acc_factor, raw_imu.yacc*acc_factor, raw_imu.zacc*acc_factor, raw_imu.xgyro*gyro_factor, raw_imu.ygyro*gyro_factor, raw_imu.zgyro*gyro_factor);
-
-            }
-            if (target_system == 0 && msg.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
-                printf("Got system ID %u\n", msg.sysid);
-                target_system = msg.sysid;
-
-                // get key messages at 200Hz
-                mav_set_message_rate(MAVLINK_MSG_ID_ATTITUDE, 40);
-            }
-        }
-    }
-
-    double tnow = get_time_seconds();
-    if (tnow - last_hb_s > 1.0) {
-        last_hb_s = tnow;
-        send_heartbeat();
-    }
-
-    return 0;
-}
 
 void mav_set_message_rate(uint32_t message_id, float rate_hz)
 {
@@ -85,24 +53,24 @@ static double get_time_seconds()
 
 
 // Start the IMU receiver and Camera capture threads
-dataStream::dataStream()
-{
-    startThreads();
-}
+// dataStream::dataStream()
+// {
+//     startThreads();
+// }
 
-// Kill the threads
-dataStream::~dataStream()
-{
-    try
-    {
-        stopThreads();
-    }
-    catch(const std::exception& e)
-    {
-        std::cerr << e.what() << '\n';
-    }
+// // Kill the threads
+// dataStream::~dataStream()
+// {
+//     try
+//     {
+//         stopThreads();
+//     }
+//     catch(const std::exception& e)
+//     {
+//         std::cerr << e.what() << '\n';
+//     }
     
-}
+// }
 
 void dataStream::recv_thread()
 {
