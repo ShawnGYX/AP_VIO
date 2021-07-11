@@ -75,8 +75,8 @@ extern void comm_send_ch(mavlink_channel_t chan, uint8_t c);
 
 class dataStream{
     public:
-    // dataStream();
-    // ~dataStream();
+    dataStream();
+    ~dataStream();
     void startThreads();
     void stopThreads();
     void cam_thread();

@@ -53,24 +53,24 @@ static double get_time_seconds()
 
 
 // Start the IMU receiver and Camera capture threads
-// dataStream::dataStream()
-// {
-//     startThreads();
-// }
+dataStream::dataStream()
+{
+    // startThreads();
+}
 
-// // Kill the threads
-// dataStream::~dataStream()
-// {
-//     try
-//     {
-//         stopThreads();
-//     }
-//     catch(const std::exception& e)
-//     {
-//         std::cerr << e.what() << '\n';
-//     }
+// Kill the threads
+dataStream::~dataStream()
+{
+    try
+    {
+        stopThreads();
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << e.what() << '\n';
+    }
     
-// }
+}
 
 void dataStream::recv_thread()
 {
