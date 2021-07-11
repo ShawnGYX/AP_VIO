@@ -39,6 +39,7 @@ set(AP_VIO_HEADER_FILES
     include/eqf_vio/CSVReader.h
     include/eqf_vio/VisionMeasurement.h
     include/eqf_vio/EqFMatrices.h
+    # include/eqf_vio/dataStream.h
     include/mavhelper.h
     )
 set(AP_VIO_SOURCE_FILES
@@ -49,6 +50,7 @@ set(AP_VIO_SOURCE_FILES
     src/IMUVelocity.cpp
     src/EqFMatrices.cpp
     src/mavhelper.cpp
+    # src/dataStream.cpp
 )
 
 add_library(ap_vio_lib
@@ -70,6 +72,8 @@ find_package(OpenCV REQUIRED)
 find_package(GIFT REQUIRED)
 
 add_executable(vio src/main.cpp)
+add_executable(vio_ap src/main_ap.cpp)
+
 target_link_libraries(vio
     GIFT
     ${OpenCV_LIBS}
@@ -85,5 +89,19 @@ target_include_directories(vio
     PRIVATE ${YAML_CPP_INCLUDE_DIR}
 )
 
+target_link_libraries(vio_ap
+    GIFT
+    ${OpenCV_LIBS}
+    ap_vio_lib
+    ${MODULE_LIBS}
+    yaml-cpp
+)
+target_include_directories(vio_ap
+    PRIVATE GIFT::GIFT
+    PRIVATE ${OpenCV_INCLUDE_DIRS}
+    PRIVATE include
+    PRIVATE ${EIGEN_INCLUDE_DIRS}
+    PRIVATE ${YAML_CPP_INCLUDE_DIR}
+)
 
 # Add the tests
