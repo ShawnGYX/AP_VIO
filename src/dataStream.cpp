@@ -89,7 +89,7 @@ void dataStream::recv_thread()
                 last_msg_s = tnow;
 
                 mavlink_msg_raw_imu_decode(&msg, &raw_imu);
-
+                imuVel.stamp = tnow;
                 imuVel.omega << raw_imu.xgyro*gyro_factor, raw_imu.ygyro*gyro_factor, raw_imu.zgyro*gyro_factor;
                 imuVel.accel << raw_imu.xacc*acc_factor, raw_imu.yacc*acc_factor, raw_imu.zacc*acc_factor;
 
@@ -121,8 +121,8 @@ void dataStream::recv_thread()
 VIOState dataStream::callbackImage(const cv::Mat image)
 {
     std::cout<<"Image Message Received."<<std::endl;
-    const uint32_t now = std::chrono::steady_clock::now().time_since_epoch().count();
-
+    // const uint32_t now = std::chrono::steady_clock::now().time_since_epoch().count();
+    double now = get_time_seconds();
     // Run GIFT on the image 
     featureTracker.processImage(image);
     const std::vector<GIFT::Feature> features = featureTracker.outputFeatures();

@@ -153,9 +153,9 @@ int main(int argc, const char *argv[])
     
     dataStream ds;
     
-
+    // VIOFilter::Settings filterSettings();
     VIOFilter::Settings filterSettings(eqf_vioConfig["eqf"]);
-    VIOFilter filter = VIOFilter(filterSettings);
+    // VIOFilter filter = VIOFilter(filterSettings);
 
     ds.filter = VIOFilter(filterSettings);
     ds.featureTracker = GIFT::PointFeatureTracker(camera);
@@ -192,7 +192,7 @@ int main(int argc, const char *argv[])
         exit(1);
     }
 
-    dev_fd = open_serial(devname, 115200);
+    dev_fd = open_serial(devname, 921600);
     if (dev_fd == -1) {
         printf("Failed to open %s\n", devname);
         exit(1);
