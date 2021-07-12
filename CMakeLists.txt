@@ -2,9 +2,6 @@ cmake_minimum_required(VERSION 3.0)
 project(AP_VIO VERSION 0.0.1)
 set(CMAKE_CXX_STANDARD 17)
 
-# Set off if you want to build the project in pure cmake
-
-
 include(CMakeDependentOption)
 
 find_package(Eigen3 3 REQUIRED)
@@ -76,23 +73,7 @@ find_package(GIFT REQUIRED)
 
 include_directories ("/usr/include/opencv4/")
 
-# add_executable(vio src/main.cpp)
 add_executable(vio_ap src/main_ap.cpp)
-
-# target_link_libraries(vio
-#     GIFT
-#     ${OpenCV_LIBS}
-#     ap_vio_lib
-#     ${MODULE_LIBS}
-#     yaml-cpp
-# )
-# target_include_directories(vio
-#     PRIVATE GIFT::GIFT
-#     PRIVATE ${OpenCV_INCLUDE_DIRS}
-#     PRIVATE include
-#     PRIVATE ${EIGEN_INCLUDE_DIRS}
-#     PRIVATE ${YAML_CPP_INCLUDE_DIR}
-# )
 
 target_link_libraries(vio_ap
     GIFT
@@ -109,4 +90,3 @@ target_include_directories(vio_ap
     PRIVATE ${YAML_CPP_INCLUDE_DIR}
 )
 
-# Add the tests
