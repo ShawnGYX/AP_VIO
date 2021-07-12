@@ -13,6 +13,7 @@ find_package(yaml-cpp REQUIRED)
 
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 
+# Set your own GIFT directory, usually in '../GIFT/build/GIFT'
 set(GIFT_DIR "/home/pi/GIFT/build/GIFT")
 
 
@@ -44,7 +45,6 @@ set(AP_VIO_HEADER_FILES
     include/eqf_vio/VisionMeasurement.h
     include/eqf_vio/EqFMatrices.h
     include/eqf_vio/dataStream.h
-    # include/mavhelper.h
     )
 set(AP_VIO_SOURCE_FILES
     src/VIOState.cpp
@@ -53,7 +53,6 @@ set(AP_VIO_SOURCE_FILES
     src/VisionMeasurement.cpp
     src/IMUVelocity.cpp
     src/EqFMatrices.cpp
-    # src/mavhelper.cpp
     src/dataStream.cpp
 )
 

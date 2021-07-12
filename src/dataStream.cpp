@@ -1,14 +1,5 @@
 #include "eqf_vio/dataStream.h"
 
-// #include <mavhelper.h>
-// #define MAVLINK_USE_CONVENIENCE_FUNCTIONS
-
-// #include "mavlink/mavlink_types.h"
-// static mavlink_system_t mavlink_system = {42,11,};
-
-
-// #include "mavlink/ardupilotmega/mavlink.h"
-
 static mavlink_status_t mav_status;
 static uint8_t target_system;
 static double last_msg_s;
@@ -17,6 +8,8 @@ static double last_hb_s;
 float gyro_factor = 1e-3;
 float acc_factor = 9.81 * 1e-3;
 
+cv::Mat record_cam(bool indoor_lighting);
+VisionMeasurement convertGIFTFeatures(const std::vector<GIFT::Feature>& GIFTFeatures, const double& stamp);
 
 void mav_set_message_rate(uint32_t message_id, float rate_hz)
 {
@@ -40,10 +33,6 @@ void send_heartbeat(void)
         0, 0, 0);
 }
 
-
-cv::Mat record_cam(bool indoor_lighting);
-VisionMeasurement convertGIFTFeatures(const std::vector<GIFT::Feature>& GIFTFeatures, const double& stamp);
-
 static double get_time_seconds()
 {
     struct timeval tp;
@@ -55,7 +44,7 @@ static double get_time_seconds()
 // Start the IMU receiver and Camera capture threads
 dataStream::dataStream()
 {
-    // startThreads();
+
 }
 
 // Kill the threads
@@ -95,8 +84,6 @@ void dataStream::recv_thread()
 
                 this->filter.processIMUData(imuVel);
 
-                // printf("xacc:%f, yacc:%f, zacc:%f, xgyro:%f, ygyro:%f, zgyro:%f.\n", raw_imu.xacc*acc_factor, raw_imu.yacc*acc_factor, raw_imu.zacc*acc_factor, raw_imu.xgyro*gyro_factor, raw_imu.ygyro*gyro_factor, raw_imu.zgyro*gyro_factor);
-
             }
             if (target_system == 0 && msg.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
                 printf("Got system ID %u\n", msg.sysid);
@@ -121,8 +108,8 @@ void dataStream::recv_thread()
 VIOState dataStream::callbackImage(const cv::Mat image)
 {
     std::cout<<"Image Message Received."<<std::endl;
-    // const uint32_t now = std::chrono::steady_clock::now().time_since_epoch().count();
     double now = get_time_seconds();
+    
     // Run GIFT on the image 
     featureTracker.processImage(image);
     const std::vector<GIFT::Feature> features = featureTracker.outputFeatures();
@@ -141,9 +128,6 @@ VIOState dataStream::callbackImage(const cv::Mat image)
 // Start the IMU receiver and Camera capture threads
 void dataStream::startThreads()
 {
-    
-    // send_th = std::thread(&dataStream::send_thread, this);
-    // printf("Sender thread created.\n");
 
     std::time_t t0 = std::time(nullptr);
     std::stringstream outputFileNameStream;
@@ -171,7 +155,6 @@ void dataStream::stopThreads()
     usleep(100);
     if (recv_th.joinable()){recv_th.join();}
     if (cam_th.joinable()){cam_th.join();}
-    // if (send_th.joinable(){send_th.join();}
     printf("Threads stopped.\n");
 }
 

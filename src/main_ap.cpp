@@ -24,12 +24,9 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 
-// #include "mavhelper.h"
-
 #define MAVLINK_USE_CONVENIENCE_FUNCTIONS
 
 #include "../include/mavlink/mavlink_types.h"
-// mavlink_system_t mavlink_system = {42,11,};
 
 static int dev_fd = -1;
 
@@ -46,7 +43,6 @@ static int dev_fd = -1;
 #include "yaml-cpp/yaml.h"
 
 
-
 static double get_time_seconds()
 {
     struct timeval tp;
@@ -54,17 +50,13 @@ static double get_time_seconds()
     return (tp.tv_sec + (tp.tv_usec*1.0e-6));
 }
 
-
-
-
 void comm_send_ch(mavlink_channel_t chan, uint8_t c)
 {
     write(dev_fd, &c, 1);
 }
 
-/*
-  open up a serial port at given baudrate
- */
+
+// Open up a serial port at given baudrate
 static int open_serial(const char *devname, uint32_t baudrate)
 {
     int fd = open(devname, O_RDWR|O_CLOEXEC);
@@ -101,14 +93,6 @@ static int open_serial(const char *devname, uint32_t baudrate)
     return fd;
 }
 
-/*
-  show usage
- */
-static void usage(void)
-{
-    printf("mavexample: <options>\n");
-    printf(" -D serial_device\n");
-}
 
 
 
@@ -116,19 +100,19 @@ static void usage(void)
 int main(int argc, const char *argv[])
 {
     
-    // Read argument
-    // if (argc != 1)
-    // {
-    //     std::cout<< "No configuration file was provided.\n";
-    //     std::cout<< "Usage: EQVIO_config_file."<<std::endl;
-    //     return 1;
-    // }
-    // else if (argc > 1)
-    // {
-    //     std::cout<< "Too many files were provided.\n";
-    //     std::cout<< "Usage: EQVIO_config_file."<<std::endl;
-    //     return 1;
-    // }
+    // Read arguments
+    if (argc != 2)
+    {
+        std::cout<< "Not enough arguments were provided.\n";
+        std::cout<< "Usage: EQVIO_config_file Serial_port_id"<<std::endl;
+        return 1;
+    }
+    else if (argc > 2)
+    {
+        std::cout<< "Too many files were provided.\n";
+        std::cout<< "Usage: EQVIO_config_file Serial_port_id"<<std::endl;
+        return 1;
+    }
     std::string EQVIO_config_fname(argv[1]);
 
     // Load EQVIO configurations
@@ -148,14 +132,11 @@ int main(int argc, const char *argv[])
         ess << "Couldn't open the GIFT camera intrinsics file: "<< camera_intrinsics_fname;
         throw std::runtime_error(ess.str());
     }
-    GIFT::PinholeCamera camera = GIFT::PinholeCamera(cv::String(camera_intrinsics_fname));
-    GIFT::PointFeatureTracker featureTracker = GIFT::PointFeatureTracker(camera);
+    GIFT::PinholeCamera camera = GIFT::PinholeCamera(cv::String(camera_intrinsics_fname));    
     
     dataStream ds;
     
-    // VIOFilter::Settings filterSettings();
     VIOFilter::Settings filterSettings(eqf_vioConfig["eqf"]);
-    // VIOFilter filter = VIOFilter(filterSettings);
 
     ds.filter = VIOFilter(filterSettings);
     ds.featureTracker = GIFT::PointFeatureTracker(camera);
@@ -169,30 +150,11 @@ int main(int argc, const char *argv[])
     safeConfig(eqf_vioConfig["GIFT"]["maxLevel"], ds.featureTracker.maxLevel);
     
     
-    
+    // Open the given serial port
     int opt;
-    const char *devname = NULL;
+    const char *devname = argv[2];
 
-    // while ((opt = getopt(argc, (char * const *)argv, "D:")) != -1) {
-    //     switch (opt) {
-    //     case 'D':
-    //         devname = optarg;
-    //         break;
-    //     default:
-    //         printf("Invalid option '%c'\n", opt);
-    //         usage();
-    //         exit(1);
-    //     }
-    // }
-
-    devname = argv[2];
-
-    if (!devname) {
-        usage();
-        exit(1);
-    }
-
-    dev_fd = open_serial(devname, 921600);
+    dev_fd = open_serial(devname, 921600); // This baudrate is used for connection between Pi and CubeOrange
     if (dev_fd == -1) {
         printf("Failed to open %s\n", devname);
         exit(1);
@@ -200,6 +162,7 @@ int main(int argc, const char *argv[])
 
     ds.fd = dev_fd;
 
+    // Start the threads
     ds.startThreads();
 
     // while (true) {

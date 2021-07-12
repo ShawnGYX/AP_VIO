@@ -40,7 +40,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-// #include <mavhelper.h>
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 #define MAVLINK_USE_CONVENIENCE_FUNCTIONS
@@ -52,26 +51,9 @@ extern void comm_send_ch(mavlink_channel_t chan, uint8_t c);
 
 #include "../include/mavlink/ardupilotmega/mavlink.h"
 
-
-// #include "all/mavlink.h"
-// #include "common/common.h"
-// #include "all/all.h"
-// #include "ArduPilot/GCS_MAVLink/GCS.h"
-// #include "GCS_MAVLink/GCS.h"
-
-// #include "AP_Math/AP_Math.h"
-// #include "AP_Common/Location.h"
-
-
-
-
-
-
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 #endif
-
-
 
 class dataStream{
     public:
@@ -88,56 +70,13 @@ class dataStream{
     VIOFilter filter;
 
     VIOState callbackImage(const cv::Mat image);
-    // void callbackImu(const mavlink_message_t &IMUmsg);
-
 
     private:
 
     std::thread recv_th;
     std::thread cam_th;
-    // std::thread send_th;
     bool stop_recv = false;
     bool stop_cam = false;
-    // bool stop_send = false;
-    // todo: update these params
-    // const uint8_t system_id = 17;
-    // const uint8_t component_id = 18;
-
-    // const mavlink_channel_t mavlink_ch = (mavlink_channel_t)(MAVLINK_COMM_0+5);
-
     
-
-    // bool get_free_msg_buf_index(uint8_t &index);
-
-    // uint64_t last_observation_usec;
-    // uint64_t time_offset_us;
-
-    // struct
-    // {
-    //     uint64_t time_send_us;
-    //     mavlink_message_t obs_msg;
-    // } msg_buf[3];
-    
-
-    // enum class TypeMask: uint8_t {
-    //     VISION_POSITION_ESTIMATE   = (1 << 0),
-    //     VISION_SPEED_ESTIMATE      = (1 << 1),
-    //     VISION_POSITION_DELTA      = (1 << 2)
-    // };
-
-    // bool should_send(TypeMask type_mask) const;
-    // void update_vp_estimate(const VIOState estimatedState);
-    // // void update_vp_estimate(const Location &loc,
-    // //                         const Vector3f &position,
-    // //                         const Vector3f &velocity,
-    // //                         const Quaternion &attitude);
-
-    // void maybe_send_heartbeat();
-    // uint32_t last_heartbeat_ms;
-
-    // Quaternion _attitude_prev;
-
-    // Vector3f _position_prev;
-
 };
 
