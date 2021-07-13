@@ -101,13 +101,13 @@ int main(int argc, const char *argv[])
 {
     
     // Read arguments
-    if (argc != 2)
+    if (argc < 3)
     {
         std::cout<< "Not enough arguments were provided.\n";
         std::cout<< "Usage: EQVIO_config_file Serial_port_id"<<std::endl;
         return 1;
     }
-    else if (argc > 2)
+    else if (argc > 3)
     {
         std::cout<< "Too many files were provided.\n";
         std::cout<< "Usage: EQVIO_config_file Serial_port_id"<<std::endl;
