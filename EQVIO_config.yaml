@@ -46,6 +46,7 @@ main:
   startTime: 28.0
   writeFilter: false
   writeState: true
+  indoorLighting: true
 sim:
   IMUTimeStep: 0.005
   cameraOffset:

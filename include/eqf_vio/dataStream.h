@@ -64,6 +64,7 @@ class dataStream{
     void cam_thread();
     void recv_thread();
     std::ofstream outputFile;
+    bool indoor_lighting;
     int fd;
 
     GIFT::PointFeatureTracker featureTracker;

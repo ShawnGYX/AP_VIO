@@ -113,6 +113,8 @@ VIOState dataStream::callbackImage(const cv::Mat image)
     // Run GIFT on the image 
     featureTracker.processImage(image);
     const std::vector<GIFT::Feature> features = featureTracker.outputFeatures();
+    std::cout<<features.size()<<std::endl;
+    cv::imwrite("test.jpg", image);
     const VisionMeasurement visionData = convertGIFTFeatures(features, now);
 
     // Pass the feature data to the filter
@@ -161,11 +163,62 @@ void dataStream::stopThreads()
 
 void dataStream::cam_thread()
 {
-    const cv::Mat& img_msg = record_cam(false);
-    const VIOState stateEstimate = callbackImage(img_msg);
+    
+    cv::VideoCapture cap(0);
+    // cap.set(CV_CAP_PROP_EXPOSURE, 1.7);
+    cap.set(CV_CAP_PROP_AUTO_EXPOSURE,0.75);
 
-    outputFile << std::setprecision(20) << filter.getTime() << std::setprecision(5) << ", "
+
+    float exposure;
+    cv::Mat frame;
+    
+    if (indoor_lighting)
+    {
+        exposure =0.5;
+    }
+    else
+    {
+        exposure = 0.001;
+    }
+
+    float gain = 1e-4;
+    for(;;)
+    {
+        cap >> frame;
+
+        if(frame.empty())
+        {
+            std::cerr << "Something is wrong with the webcam, could not get frame." << std::endl;
+            break;
+        }
+        cv::imwrite("test_0.jpg",frame);
+        VIOState stateEstimate = callbackImage(frame);
+
+        outputFile << std::setprecision(20) << filter.getTime() << std::setprecision(5) << ", "
                                << stateEstimate << std::endl;
+
+        // Set camera exposure
+        // cap.set(CV_CAP_PROP_EXPOSURE, exposure);
+
+        cv::Scalar img_mean_s = cv::mean(frame);
+        float img_mean = img_mean_s[0];
+        if (img_mean > 128-32 && img_mean < 128+32)
+        {
+            continue;
+        }
+        exposure += gain * (128 - img_mean) * exposure;
+        if (exposure > 0.7)
+        {
+            exposure = 0.7;
+        }
+        else if (exposure <=0.0)
+        {
+            exposure = 1e-6;
+        }
+
+
+    }
+
 
 }
 

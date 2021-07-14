@@ -149,6 +149,8 @@ int main(int argc, const char *argv[])
     safeConfig(eqf_vioConfig["GIFT"]["winSize"], ds.featureTracker.winSize);
     safeConfig(eqf_vioConfig["GIFT"]["maxLevel"], ds.featureTracker.maxLevel);
     
+    ds.indoor_lighting = eqf_vioConfig["main"]["indoorLighting"].as<bool>();
+    
     
     // Open the given serial port
     int opt;
