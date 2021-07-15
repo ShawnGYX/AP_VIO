@@ -15,6 +15,7 @@
 #include "GIFT/Visualisation.h"
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/core/core.hpp"
+#include "opencv2/calib3d.hpp"
 
 #include "yaml-cpp/yaml.h"
 
@@ -66,6 +67,9 @@ class dataStream{
     std::ofstream outputFile;
     bool indoor_lighting;
     int fd;
+
+    cv::Mat K_coef;
+    cv::Mat D_coef;
 
     GIFT::PointFeatureTracker featureTracker;
     VIOFilter filter;

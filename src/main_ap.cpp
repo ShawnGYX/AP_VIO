@@ -133,8 +133,16 @@ int main(int argc, const char *argv[])
         throw std::runtime_error(ess.str());
     }
     GIFT::PinholeCamera camera = GIFT::PinholeCamera(cv::String(camera_intrinsics_fname));    
+
+    const YAML::Node camconfig = YAML::LoadFile(camera_intrinsics_fname);
+    float k[9]; 
+    float d[4];
+    safeConfig(camconfig["camera_matrix"]["data"], k);
+    safeConfig(camconfig["used_for_rec"], d);
     
     dataStream ds;
+    ds.K_coef = cv::Mat(3, 3, CV_32F, k);
+    ds.D_coef = cv::Mat(1, 4, CV_32F, d);
     
     VIOFilter::Settings filterSettings(eqf_vioConfig["eqf"]);
 

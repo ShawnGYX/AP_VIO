@@ -109,12 +109,15 @@ VIOState dataStream::callbackImage(const cv::Mat image)
 {
     // std::cout<<"Image Message Received."<<std::endl;
     double now = get_time_seconds();
+
+    cv::Mat undistorted;
     
+    cv::fisheye::undistortImage(image, undistorted, K_coef, D_coef);
     // Run GIFT on the image 
-    featureTracker.processImage(image);
+    featureTracker.processImage(undistorted);
     const std::vector<GIFT::Feature> features = featureTracker.outputFeatures();
     std::cout<< "New image received, with" <<features.size()<<" features."<<std::endl;
-    cv::imwrite("test.jpg", image);
+    cv::imwrite("test.jpg", undistorted);
     const VisionMeasurement visionData = convertGIFTFeatures(features, now);
 
     // Pass the feature data to the filter
