@@ -73,8 +73,8 @@ void dataStream::recv_thread()
     while (read(fd, &b, 1) == 1) {
         if (mavlink_parse_char(MAVLINK_COMM_0, b, &msg, &mav_status)) {
             double tnow = get_time_seconds();
-            if (msg.msgid == MAVLINK_MSG_ID_ATTITUDE) {
-                printf("msgid=%u dt=%f\n", msg.msgid, tnow - last_msg_s);
+            if (msg.msgid == MAVLINK_MSG_ID_RAW_IMU) {
+                // printf("msgid=%u dt=%f\n", msg.msgid, tnow - last_msg_s);
                 last_msg_s = tnow;
 
                 mavlink_msg_raw_imu_decode(&msg, &raw_imu);
@@ -90,7 +90,7 @@ void dataStream::recv_thread()
                 target_system = msg.sysid;
 
                 // get key messages at 200Hz
-                mav_set_message_rate(MAVLINK_MSG_ID_ATTITUDE, 40);
+                mav_set_message_rate(MAVLINK_MSG_ID_RAW_IMU, 40);
             }
         }
     }
@@ -107,13 +107,13 @@ void dataStream::recv_thread()
 // Callback function for images
 VIOState dataStream::callbackImage(const cv::Mat image)
 {
-    std::cout<<"Image Message Received."<<std::endl;
+    // std::cout<<"Image Message Received."<<std::endl;
     double now = get_time_seconds();
     
     // Run GIFT on the image 
     featureTracker.processImage(image);
     const std::vector<GIFT::Feature> features = featureTracker.outputFeatures();
-    std::cout<<features.size()<<std::endl;
+    std::cout<< "New image received, with" <<features.size()<<" features."<<std::endl;
     cv::imwrite("test.jpg", image);
     const VisionMeasurement visionData = convertGIFTFeatures(features, now);
 
