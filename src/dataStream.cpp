@@ -110,9 +110,17 @@ VIOState dataStream::callbackImage(const cv::Mat image)
     // std::cout<<"Image Message Received."<<std::endl;
     double now = get_time_seconds();
 
-    cv::Mat undistorted;
+    cv::Mat undistorted = image.clone();
     
-    cv::fisheye::undistortImage(image, undistorted, K_coef, D_coef);
+    cv::Size imageSize = image.size();
+    cv::Mat mapX = cv::Mat(imageSize,CV_32FC1);
+    cv::Mat mapY = cv::Mat(imageSize,CV_32FC1);
+    cv::Mat iD = cv::Mat::eye(3,3,CV_32F);
+    undistorted = image.clone();
+
+    cv::fisheye::initUndistortRectifyMap(K_coef,D_coef,iD,K_coef,imageSize,CV_32FC1,mapX,mapY);
+    cv::remap(image,undistorted,mapX, mapY, CV_INTER_LINEAR);
+    // cv::fisheye::undistortImage(image, undistorted, K_coef, D_coef);
     // Run GIFT on the image 
     featureTracker.processImage(undistorted);
     const std::vector<GIFT::Feature> features = featureTracker.outputFeatures();
@@ -194,7 +202,7 @@ void dataStream::cam_thread()
             std::cerr << "Something is wrong with the webcam, could not get frame." << std::endl;
             break;
         }
-        cv::imwrite("test_0.jpg",frame);
+        // cv::imwrite("test_0.jpg",frame);
         VIOState stateEstimate = callbackImage(frame);
 
         outputFile << std::setprecision(20) << filter.getTime() << std::setprecision(5) << ", "
