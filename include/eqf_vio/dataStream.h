@@ -42,6 +42,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include <mutex>
+
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 #define MAVLINK_USE_CONVENIENCE_FUNCTIONS

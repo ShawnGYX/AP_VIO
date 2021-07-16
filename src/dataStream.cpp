@@ -1,5 +1,7 @@
 #include "eqf_vio/dataStream.h"
 
+std::mutex mtx;
+
 static mavlink_status_t mav_status;
 static uint8_t target_system;
 static double last_msg_s;
@@ -82,7 +84,11 @@ void dataStream::recv_thread()
                 imuVel.omega << raw_imu.xgyro*gyro_factor, raw_imu.ygyro*gyro_factor, raw_imu.zgyro*gyro_factor;
                 imuVel.accel << raw_imu.xacc*acc_factor, raw_imu.yacc*acc_factor, raw_imu.zacc*acc_factor;
 
+                mtx.lock();
+                std::cout<<"IMU thread locks mtx." << std::endl;
                 this->filter.processIMUData(imuVel);
+                mtx.unlock();
+                std::cout<<"IMU thread unlocks mtx." << std::endl;
 
             }
             if (target_system == 0 && msg.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
@@ -129,7 +135,12 @@ VIOState dataStream::callbackImage(const cv::Mat image)
     const VisionMeasurement visionData = convertGIFTFeatures(features, now);
 
     // Pass the feature data to the filter
+    mtx.lock();
+    std::cout<<"Camera thread locks mtx." << std::endl;
+
     filter.processVisionData(visionData);
+    mtx.unlock();
+    std::cout<<"Camera thread unlocks mtx." << std::endl;
 
     // Request the system state from the filter
     VIOState estimatedState = filter.stateEstimate();
