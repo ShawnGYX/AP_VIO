@@ -176,8 +176,9 @@ void dataStream::cam_thread()
 {
     
     cv::VideoCapture cap(0);
-    // cap.set(CV_CAP_PROP_EXPOSURE, 1.7);
-    cap.set(CV_CAP_PROP_AUTO_EXPOSURE,0.75);
+    // cap.set(CV_CAP_PROP_AUTO_EXPOSURE,0.75);
+    cap.set(CV_CAP_PROP_AUTO_EXPOSURE,0.25);
+    cap.set(CV_CAP_PROP_EXPOSURE, 1.7);
 
 
     float exposure;
@@ -209,7 +210,7 @@ void dataStream::cam_thread()
                                << stateEstimate << std::endl;
 
         // Set camera exposure
-        // cap.set(CV_CAP_PROP_EXPOSURE, exposure);
+        cap.set(CV_CAP_PROP_EXPOSURE, exposure);
 
         cv::Scalar img_mean_s = cv::mean(frame);
         float img_mean = img_mean_s[0];
