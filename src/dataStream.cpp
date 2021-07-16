@@ -139,11 +139,11 @@ VIOState dataStream::callbackImage(const cv::Mat image)
     std::cout<<"Camera thread locks mtx." << std::endl;
 
     filter.processVisionData(visionData);
+    // Request the system state from the filter
+    VIOState estimatedState = filter.stateEstimate();
     mtx.unlock();
     std::cout<<"Camera thread unlocks mtx." << std::endl;
 
-    // Request the system state from the filter
-    VIOState estimatedState = filter.stateEstimate();
     return estimatedState;
 }
 
