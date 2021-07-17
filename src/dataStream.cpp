@@ -42,7 +42,6 @@ static double get_time_seconds()
     return (tp.tv_sec + (tp.tv_usec*1.0e-6));
 }
 
-
 // Start the IMU receiver and Camera capture threads
 dataStream::dataStream()
 {
@@ -67,9 +66,7 @@ void dataStream::recv_thread()
 {
     uint8_t b;
     mavlink_message_t msg;
-
-    mavlink_raw_imu_t raw_imu;
-    
+    mavlink_raw_imu_t raw_imu;   
     IMUVelocity imuVel;
 
     while (read(fd, &b, 1) == 1) {
@@ -84,19 +81,17 @@ void dataStream::recv_thread()
                 imuVel.omega << raw_imu.xgyro*gyro_factor, raw_imu.ygyro*gyro_factor, raw_imu.zgyro*gyro_factor;
                 imuVel.accel << raw_imu.xacc*acc_factor, raw_imu.yacc*acc_factor, raw_imu.zacc*acc_factor;
 
+                // Pass the IMU measurements to the filter
                 mtx.lock();
-                std::cout<<"IMU thread locks mtx." << std::endl;
                 this->filter.processIMUData(imuVel);
                 mtx.unlock();
-                std::cout<<"IMU thread unlocks mtx." << std::endl;
-
             }
             if (target_system == 0 && msg.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
                 printf("Got system ID %u\n", msg.sysid);
                 target_system = msg.sysid;
 
                 // get key messages at 200Hz
-                mav_set_message_rate(MAVLINK_MSG_ID_RAW_IMU, 40);
+                mav_set_message_rate(MAVLINK_MSG_ID_RAW_IMU, 200);
             }
         }
     }
@@ -113,21 +108,18 @@ void dataStream::recv_thread()
 // Callback function for images
 VIOState dataStream::callbackImage(const cv::Mat image)
 {
-    // std::cout<<"Image Message Received."<<std::endl;
     double now = get_time_seconds();
 
-    cv::Mat undistorted = image.clone();
-    
+    // Undistort the image
+    cv::Mat undistorted = image.clone();    
     cv::Size imageSize = image.size();
     cv::Mat mapX = cv::Mat(imageSize,CV_32FC1);
     cv::Mat mapY = cv::Mat(imageSize,CV_32FC1);
     cv::Mat iD = cv::Mat::eye(3,3,CV_32F);
-    undistorted = image.clone();
-
     cv::fisheye::initUndistortRectifyMap(K_coef,D_coef,iD,K_coef,imageSize,CV_32FC1,mapX,mapY);
     cv::remap(image,undistorted,mapX, mapY, CV_INTER_LINEAR);
-    // cv::fisheye::undistortImage(image, undistorted, K_coef, D_coef);
-    // Run GIFT on the image 
+
+    // Run GIFT on the undistorted image 
     featureTracker.processImage(undistorted);
     const std::vector<GIFT::Feature> features = featureTracker.outputFeatures();
     std::cout<< "New image received, with" <<features.size()<<" features."<<std::endl;
@@ -136,13 +128,10 @@ VIOState dataStream::callbackImage(const cv::Mat image)
 
     // Pass the feature data to the filter
     mtx.lock();
-    std::cout<<"Camera thread locks mtx." << std::endl;
-
     filter.processVisionData(visionData);
     // Request the system state from the filter
     VIOState estimatedState = filter.stateEstimate();
     mtx.unlock();
-    std::cout<<"Camera thread unlocks mtx." << std::endl;
 
     return estimatedState;
 }
@@ -152,22 +141,21 @@ VIOState dataStream::callbackImage(const cv::Mat image)
 // Start the IMU receiver and Camera capture threads
 void dataStream::startThreads()
 {
-
+    // Set output file, add header
     std::time_t t0 = std::time(nullptr);
     std::stringstream outputFileNameStream;
     outputFileNameStream << "EQF_VIO_output_" << std::put_time(std::localtime(&t0), "%F_%T") << ".csv";
-    
     
     outputFile = std::ofstream(outputFileNameStream.str());
     outputFile << "time, tx, ty, tz, qw, qx, qy, qz, vx, vy, vz, N, "
                 << "p1id, p1x, p1y, p1z, ..., ..., ..., ..., pNid, pNx, pNy, pNz" << std::endl;
     
+    // Start the threads
     recv_th = std::thread(&dataStream::recv_thread, this);
     printf("IMU Receiver thread created.\n");
 
     cam_th = std::thread(&dataStream::cam_thread, this);
     printf("Camera capture thread created.\n");
-
 }
 
 // Kill the threads
@@ -185,12 +173,10 @@ void dataStream::stopThreads()
 
 void dataStream::cam_thread()
 {
-    
+    // Start video capture, disable auto exposure tuning.
     cv::VideoCapture cap(0);
-    // cap.set(CV_CAP_PROP_AUTO_EXPOSURE,0.75);
     cap.set(CV_CAP_PROP_AUTO_EXPOSURE,0.25);
     cap.set(CV_CAP_PROP_EXPOSURE, 1.7);
-
 
     float exposure;
     cv::Mat frame;
@@ -205,22 +191,21 @@ void dataStream::cam_thread()
     }
 
     float gain = 1e-4;
+
     for(;;)
     {
         cap >> frame;
-
         if(frame.empty())
         {
             std::cerr << "Something is wrong with the webcam, could not get frame." << std::endl;
             break;
         }
-        // cv::imwrite("test_0.jpg",frame);
-        VIOState stateEstimate = callbackImage(frame);
 
+        VIOState stateEstimate = callbackImage(frame);
         outputFile << std::setprecision(20) << filter.getTime() << std::setprecision(5) << ", "
                                << stateEstimate << std::endl;
 
-        // Set camera exposure
+        // Manually adjust camera exposure
         cap.set(CV_CAP_PROP_EXPOSURE, exposure);
 
         cv::Scalar img_mean_s = cv::mean(frame);
@@ -238,64 +223,7 @@ void dataStream::cam_thread()
         {
             exposure = 1e-6;
         }
-
-
     }
-
-
-}
-
-
-cv::Mat record_cam(bool indoor_lighting)
-{
-    // Initialize image capture module
-    cv::VideoCapture *cap;
-    cap = new cv::VideoCapture(0);
-    cap->set(cv::CAP_PROP_AUTO_EXPOSURE, 0.25);
-
-    // Adjust exposure
-    float exposure;
-    cv::Mat frame;
-    if (indoor_lighting)
-    {
-        exposure = 0.5;
-    }
-    else
-    {
-        exposure = 0.001;
-    }
-    float gain = 1e-4;
-    for(;;)
-    {
-        cap->read(frame);
-        if (frame.empty())
-        {
-            std::cerr << "Blank frame captured!\n";
-            break;
-        }
-
-        // Set camera exposure
-        cap->set(cv::CAP_PROP_EXPOSURE, exposure);
-
-        cv::Scalar img_mean_s = cv::mean(frame);
-        float img_mean = img_mean_s[0];
-        if (img_mean > 128-32 && img_mean < 128+32)
-        {
-            continue;
-        }
-        exposure += gain * (128 - img_mean) * exposure;
-        if (exposure > 0.7)
-        {
-            exposure = 0.7;
-        }
-        else if (exposure <=0.0)
-        {
-            exposure = 1e-6;
-        }
-    }
-
-    return frame;
-    
 }
 
 VisionMeasurement convertGIFTFeatures(const std::vector<GIFT::Feature>& GIFTFeatures, const double& stamp)
