@@ -67,6 +67,8 @@ class dataStream{
     void stopThreads();
     void cam_thread();
     void recv_thread();
+    void send_thread();
+    void update_vp_estimate(const VIOState estimatedState);
     std::ofstream outputFile;
     bool indoor_lighting;
     int fd;
@@ -79,12 +81,34 @@ class dataStream{
 
     VIOState callbackImage(const cv::Mat image);
 
+    VIOState tobeSend;
+
     private:
 
     std::thread recv_th;
     std::thread cam_th;
+    std::thread send_th;
     bool stop_recv = false;
     bool stop_cam = false;
-    
+    bool stop_send = false;
+    bool send_ready = false;
+    bool get_free_msg_buf_index(uint8_t &index);
+    uint64_t last_observation_usec;
+    uint64_t time_offset_us;
+
+    struct
+    {
+        uint64_t time_send_us;
+        mavlink_message_t obs_msg;
+    } msg_buf[3];
+
+    enum class TypeMask: uint8_t {
+        VISION_POSITION_ESTIMATE   = (1 << 0),
+        VISION_SPEED_ESTIMATE      = (1 << 1),
+        VISION_POSITION_DELTA      = (1 << 2)
+    };
+
+    bool should_send(TypeMask type_mask) const;
+    uint32_t last_heartbeat_ms;
 };
 
