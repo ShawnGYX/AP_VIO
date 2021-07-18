@@ -4,6 +4,8 @@ std::mutex mtx;
 static mavlink_status_t mav_status;
 static uint8_t target_system;
 static double last_msg_s;
+static double last_msg_s_cam;
+
 static double last_hb_s;
 
 float gyro_factor = 1e-3;
@@ -84,7 +86,7 @@ void dataStream::recv_thread()
         if (mavlink_parse_char(MAVLINK_COMM_0, b, &msg, &mav_status)) {
             double tnow = get_time_seconds();
             if (msg.msgid == MAVLINK_MSG_ID_RAW_IMU) {
-                // printf("msgid=%u dt=%f\n", msg.msgid, tnow - last_msg_s);
+                printf("msgid=%u dt=%f\n", msg.msgid, tnow - last_msg_s);
                 last_msg_s = tnow;
 
                 mavlink_msg_raw_imu_decode(&msg, &raw_imu);
@@ -216,8 +218,10 @@ void dataStream::cam_thread()
             std::cerr << "Something is wrong with the webcam, could not get frame." << std::endl;
             break;
         }
-
+        double tnow_cam = get_time_seconds();
         VIOState stateEstimate = callbackImage(frame);
+        printf("cam dt=%f\n", tnow_cam - last_msg_s_cam);
+        last_msg_s_cam = tnow_cam;
         outputFile << std::setprecision(20) << filter.getTime() << std::setprecision(5) << ", "
                                << stateEstimate << std::endl;
 

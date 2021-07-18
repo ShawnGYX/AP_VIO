@@ -26,7 +26,7 @@ eqf:
   initialBiasOmegaVariance: 0.0018290296119763514
   initialGravityVariance: 0.08084950798675615
   initialPointVariance: 184350.12410257602
-  initialSceneDepth: 14.208425590380402
+  initialSceneDepth: 0.208425590380402
   initialVelocityVariance: 51.92882434907863
   measurementVariance: 0.019577978890259425
   outlierThreshold: 0.08079903582397141
