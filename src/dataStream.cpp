@@ -222,6 +222,10 @@ void dataStream::cam_thread()
         VIOState stateEstimate = callbackImage(frame);
         printf("cam dt=%f\n", tnow_cam - last_msg_s_cam);
         last_msg_s_cam = tnow_cam;
+
+        // this needs to be atomic
+        tobeSend = stateEstimate;
+
         outputFile << std::setprecision(20) << filter.getTime() << std::setprecision(5) << ", "
                                << stateEstimate << std::endl;
 
@@ -246,51 +250,20 @@ void dataStream::cam_thread()
     }
 }
 
-bool dataStream::get_free_msg_buf_index(uint8_t &index)
-{
-    for (uint8_t i = 0; i < ARRAY_SIZE(msg_buf); i++)
-    {
-        if (msg_buf[i].time_send_us == 0)
-        {
-            index = i;
-            return true;
-        }
-    }
-    return false;
-}
-
-bool dataStream::should_send(TypeMask type_mask) const 
+bool dataStream::should_send(TypeMask type_mask) const
 {
     return 1;
 }
 
 void dataStream::update_vp_estimate(const VIOState estimatedState)
 {
-    const double now_us = get_time_seconds();
+    const uint64_t now_us = get_time_seconds() * 1e6;
 
     // Calculate a random time offset to the time sent in the message
     if (time_offset_us == 0)
     {
         time_offset_us = (unsigned(random()) % 7000) * 1000000ULL;
         printf("time_off_us %llu\n", (long long unsigned)time_offset_us);
-    }
-
-    // send all messages in the buffer
-    bool waiting_to_send = false;
-    for (uint8_t i=0; i<ARRAY_SIZE(msg_buf); i++)
-    {
-        if ((msg_buf[i].time_send_us > 0) && (now_us >= msg_buf[i].time_send_us))
-        {
-            uint8_t buf[300];
-            uint16_t buf_len = mavlink_msg_to_send_buffer(buf, &msg_buf[i].obs_msg);
-            msg_buf[i].time_send_us = 0;
-
-        }
-        waiting_to_send = msg_buf[i].time_send_us != 0;
-
-    }
-    if (waiting_to_send) {
-        return;
     }
 
     if (now_us - last_observation_usec < 20000)
@@ -311,15 +284,11 @@ void dataStream::update_vp_estimate(const VIOState estimatedState)
     // send message
     uint32_t delay_ms = 25 + unsigned(random()) % 100;
     uint64_t time_send_us = now_us + delay_ms * 1000UL;
-    uint8_t msg_buf_index;
 
-    if (should_send(TypeMask::VISION_POSITION_ESTIMATE) && get_free_msg_buf_index(msg_buf_index))
+    if (should_send(TypeMask::VISION_POSITION_ESTIMATE))
     {
-        mavlink_msg_vision_position_estimate_pack_chan(
-            target_system,
-            0,
+        mavlink_msg_vision_position_estimate_send(
             MAVLINK_COMM_0,
-            &msg_buf[msg_buf_index].obs_msg,
             now_us + time_offset_us,
             position.x(),
             position.y(),
@@ -328,23 +297,18 @@ void dataStream::update_vp_estimate(const VIOState estimatedState)
             pitch,
             yaw,
             NULL, 0);
-        msg_buf[msg_buf_index].time_send_us = time_send_us;
     }
 
-    if (should_send(TypeMask::VISION_SPEED_ESTIMATE) && get_free_msg_buf_index(msg_buf_index))
+    if (should_send(TypeMask::VISION_SPEED_ESTIMATE))
     {
-        mavlink_msg_vision_speed_estimate_pack_chan(
-            target_system,
-            0,
+        mavlink_msg_vision_speed_estimate_send(
             MAVLINK_COMM_0,
-            &msg_buf[msg_buf_index].obs_msg,
             now_us + time_offset_us,
             vel.x(),
             vel.y(),
             vel.z(),
             NULL, 0
         );
-        msg_buf[msg_buf_index].time_send_us = time_send_us;
     }
 }
 

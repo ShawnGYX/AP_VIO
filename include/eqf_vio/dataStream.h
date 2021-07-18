@@ -92,15 +92,8 @@ class dataStream{
     bool stop_cam = false;
     bool stop_send = false;
     bool send_ready = false;
-    bool get_free_msg_buf_index(uint8_t &index);
     uint64_t last_observation_usec;
     uint64_t time_offset_us;
-
-    struct
-    {
-        uint64_t time_send_us;
-        mavlink_message_t obs_msg;
-    } msg_buf[3];
 
     enum class TypeMask: uint8_t {
         VISION_POSITION_ESTIMATE   = (1 << 0),
