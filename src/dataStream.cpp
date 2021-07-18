@@ -86,7 +86,7 @@ void dataStream::recv_thread()
         if (mavlink_parse_char(MAVLINK_COMM_0, b, &msg, &mav_status)) {
             double tnow = get_time_seconds();
             if (msg.msgid == MAVLINK_MSG_ID_RAW_IMU) {
-                printf("msgid=%u dt=%f\n", msg.msgid, tnow - last_msg_s);
+                // printf("msgid=%u dt=%f\n", msg.msgid, tnow - last_msg_s);
                 last_msg_s = tnow;
 
                 mavlink_msg_raw_imu_decode(&msg, &raw_imu);
