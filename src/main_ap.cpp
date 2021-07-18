@@ -27,10 +27,6 @@
 #define MAVLINK_USE_CONVENIENCE_FUNCTIONS
 
 #include "../include/mavlink/mavlink_types.h"
-
-static int dev_fd = -1;
-
-
 #include "eqf_vio/IMUVelocity.h"
 #include "eqf_vio/VIOFilter.h"
 #include "eqf_vio/VIOFilterSettings.h"
@@ -39,9 +35,9 @@ static int dev_fd = -1;
 #include "GIFT/PointFeatureTracker.h"
 #include "GIFT/Visualisation.h"
 #include "opencv2/highgui/highgui.hpp"
-
 #include "yaml-cpp/yaml.h"
 
+static int dev_fd = -1;
 
 static double get_time_seconds()
 {
@@ -54,7 +50,6 @@ void comm_send_ch(mavlink_channel_t chan, uint8_t c)
 {
     write(dev_fd, &c, 1);
 }
-
 
 // Open up a serial port at given baudrate
 static int open_serial(const char *devname, uint32_t baudrate)
@@ -93,10 +88,6 @@ static int open_serial(const char *devname, uint32_t baudrate)
     return fd;
 }
 
-
-
-
-
 int main(int argc, const char *argv[])
 {
     
@@ -134,13 +125,11 @@ int main(int argc, const char *argv[])
     }
     GIFT::PinholeCamera camera = GIFT::PinholeCamera(cv::String(camera_intrinsics_fname));    
 
-    // const YAML::Node camconfig = YAML::LoadFile(camera_intrinsics_fname);
+    dataStream ds;
+
+    // Todo: Hardcode the cam params --- to be fixed
     float k[9] = {550.2499495823959, 0.0, 634.970638005679, 0.0, 548.8753588860187, 381.1055873002101, 0.0, 0.0, 1.0}; 
     float d[4] = {-0.03584706281933589, 0.0077362868057236946,-0.04587986231938219, 0.04834004050933801};
-    // safeConfig(camconfig["camera_matrix"]["data"], k);
-    // safeConfig(camconfig["used_for_rec"], d);
-    
-    dataStream ds;
     ds.K_coef = cv::Mat(3, 3, CV_32F, k);
     ds.D_coef = cv::Mat(1, 4, CV_32F, d);
     
@@ -159,7 +148,6 @@ int main(int argc, const char *argv[])
     
     ds.indoor_lighting = eqf_vioConfig["main"]["indoorLighting"].as<bool>();
     
-    
     // Open the given serial port
     int opt;
     const char *devname = argv[2];
@@ -174,17 +162,6 @@ int main(int argc, const char *argv[])
 
     // Start the threads
     ds.startThreads();
-
-    // while (true) {
-    //     // run at 100Hz
-    //     usleep(1000*100);
-    //     int ret = mav_update(dev_fd);
-    //     // update_vp_estimate();
-    //     if (ret != 0) {
-    //         printf("Failed mav_update\n");
-    //         exit(1);
-    //     }
-    // }
 
     return 0;
 }

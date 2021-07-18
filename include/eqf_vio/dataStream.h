@@ -1,15 +1,10 @@
 #pragma once
 
-
-
 #include "CSVReader.h"
 #include "IMUVelocity.h"
 #include "VIOFilter.h"
 #include "VIOFilterSettings.h"
 #include "VisionMeasurement.h"
-
-// #include "serial_port.h"
-
 
 #include "GIFT/PointFeatureTracker.h"
 #include "GIFT/Visualisation.h"
@@ -32,12 +27,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-
 #include <stdlib.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <signal.h>
-
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
