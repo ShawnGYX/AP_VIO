@@ -36,6 +36,7 @@
 #include <fcntl.h>
 
 #include <mutex>
+#include <queue>
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
@@ -58,9 +59,10 @@ class dataStream{
     ~dataStream();
     void startThreads();
     void stopThreads();
-    void cam_thread();
-    void recv_thread();
-    void send_thread();
+    void cam_recv_thread();
+    void imu_recv_thread();
+    void cam_proc_thread();
+    void imu_proc_thread();
     void update_vp_estimate(const VIOState estimatedState);
     std::ofstream outputFile;
     bool indoor_lighting;
@@ -72,18 +74,16 @@ class dataStream{
     GIFT::PointFeatureTracker featureTracker;
     VIOFilter filter;
 
-    VIOState callbackImage(const cv::Mat image);
+    VIOState callbackImage(const cv::Mat image, const double ts);
 
     VIOState tobeSend;
 
     private:
 
-    std::thread recv_th;
-    std::thread cam_th;
-    std::thread send_th;
-    bool stop_recv = false;
-    bool stop_cam = false;
-    bool stop_send = false;
+    std::thread imu_recv_th;
+    std::thread cam_recv_th;
+    std::thread imu_proc_th;
+    std::thread cam_proc_th;
     bool send_ready = false;
     uint64_t last_observation_usec;
     uint64_t time_offset_us;
