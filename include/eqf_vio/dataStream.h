@@ -12,7 +12,6 @@
 #include "opencv2/core/core.hpp"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/imgproc.hpp"
-
 #include "yaml-cpp/yaml.h"
 
 #include <chrono>
@@ -27,14 +26,16 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <signal.h>
-#include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <asm/termbits.h>
+#include <sys/ioctl.h>
 
+#include <cstdlib>
+#include <cstdint>
+#include <cstddef>
+#include <csignal>
+#include <cstdio>
 #include <mutex>
 #include <queue>
 

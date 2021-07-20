@@ -1,31 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <assert.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdbool.h>
-#include <sys/ioctl.h>
-#include <getopt.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <asm/ioctls.h>
-#include <asm/termbits.h>
-#include <iostream>
-#include <fstream>
-#include <iomanip>
-#include <memory>
-#include <string>
-#include <thread>
-#include <exception>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-
-#define MAVLINK_USE_CONVENIENCE_FUNCTIONS
-
 #include "../include/mavlink/mavlink_types.h"
 #include "eqf_vio/IMUVelocity.h"
 #include "eqf_vio/VIOFilter.h"
