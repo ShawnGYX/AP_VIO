@@ -1,9 +1,8 @@
 #include "eqf_vio/dataStream.h"
 
+// Used for store frame messages
 struct cam_msg {
-    cam_msg(double t, cv::Mat i) : t_now(t), img(i)
-    {}
-
+    cam_msg(double t, cv::Mat i) : t_now(t), img(i){}
     double t_now;
     cv::Mat img;
 };
@@ -12,6 +11,7 @@ std::mutex mtx_filter;
 std::mutex mtx_cam_queue;
 std::mutex mtx_imu_queue;
 
+// Passing messages between recv and proc threads
 std::queue<cam_msg> cam_queue;
 std::queue<IMUVelocity> imu_queue;
 
@@ -172,11 +172,14 @@ void dataStream::imu_recv_thread()
                 // printf("msgid=%u dt=%f\n", msg.msgid, tnow - last_msg_s);
                 last_msg_s = tnow;
 
+                // Decode the mavlink msg and store in the filter format
                 mavlink_msg_raw_imu_decode(&msg, &raw_imu);
                 imuVel.stamp = tnow;
                 imuVel.omega << raw_imu.xgyro*gyro_factor, raw_imu.ygyro*gyro_factor, raw_imu.zgyro*gyro_factor;
                 imuVel.accel << raw_imu.xacc*acc_factor, raw_imu.yacc*acc_factor, raw_imu.zacc*acc_factor;
 
+                // Push the message to the queue.
+                // The maximum size of the queue is 10.
                 mtx_imu_queue.lock();
                 imu_queue.push(imuVel);
                 mtx_imu_queue.unlock();
@@ -184,22 +187,15 @@ void dataStream::imu_recv_thread()
                 {
                     imu_queue.pop();
                 }
-
-                // Pass the IMU measurements to the filter
-                mtx_filter.lock();
-                this->filter.processIMUData(imuVel);
-                mtx_filter.unlock();
             }
             if (target_system == 0 && msg.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
                 printf("Got system ID %u\n", msg.sysid);
                 target_system = msg.sysid;
-
-                // get key messages at 200Hz
+                // Request IMU messages at 200Hz
                 mav_set_message_rate(MAVLINK_MSG_ID_RAW_IMU, 200);
             }
         }
     }
-
     double tnow = get_time_seconds();
     if (tnow - last_hb_s > 1.0) {
         last_hb_s = tnow;
@@ -213,18 +209,9 @@ void dataStream::cam_recv_thread()
     cv::VideoCapture cap(0);
     cap.set(CV_CAP_PROP_AUTO_EXPOSURE,0.25);
     cap.set(CV_CAP_PROP_EXPOSURE, 1.7);
-
-    float exposure;
     cv::Mat frame;
-    
-    if (indoor_lighting)
-    {
-        exposure =0.5;
-    }
-    else
-    {
-        exposure = 0.001;
-    }
+    float exposure;  
+    if ( indoor_lighting ){ exposure =0.5; } else{ exposure = 0.001; }
 
     float gain = 1e-4;
 
@@ -294,6 +281,7 @@ void dataStream::imu_proc_thread()
 {
     while (true)
     {
+        // If there's message in the queue, read the last one and pass into the filter.
         if (!imu_queue.empty())
         {
             mtx_imu_queue.lock();
@@ -324,12 +312,9 @@ void dataStream::update_vp_estimate(const VIOState estimatedState)
         printf("time_off_us %llu\n", (long long unsigned)time_offset_us);
     }
 
-    if (now_us - last_observation_usec < 20000)
-    {
-        return;
-    }
+    if (now_us - last_observation_usec < 20000){ return; }
 
-    // load estimates from the filter
+    // Load estimates from the filter
     const Eigen::Quaterniond& attitude = estimatedState.pose.R().asQuaternion();
     const Eigen::Vector3d& position = estimatedState.pose.x();
     const Eigen::Vector3d& vel = estimatedState.velocity;
@@ -339,7 +324,7 @@ void dataStream::update_vp_estimate(const VIOState estimatedState)
     float pitch = euler[1];
     float yaw = euler[2];
 
-    // send message
+    // Send message
     uint32_t delay_ms = 25 + unsigned(random()) % 100;
     uint64_t time_send_us = now_us + delay_ms * 1000UL;
 
