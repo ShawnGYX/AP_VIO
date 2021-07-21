@@ -104,7 +104,7 @@ VIOState dataStream::callbackImage(const cv::Mat image, const double ts)
     // Run GIFT on the undistorted image 
     featureTracker.processImage(undistorted);
     const std::vector<GIFT::Feature> features = featureTracker.outputFeatures();
-    std::cout<< "New image received, with" << features.size()<<" features."<<std::endl;
+    std::cout<< "New image received, with " << features.size() <<" features."<<std::endl;
     cv::imwrite("test.jpg", undistorted);            
     const VisionMeasurement visionData = convertGIFTFeatures(features, ts);
 
@@ -165,13 +165,9 @@ void dataStream::imu_recv_thread()
     mavlink_raw_imu_t raw_imu;   
     IMUVelocity imuVel;
 
-    static double t1, t2, count, sum;
-
     while (read(fd, &b, 1) == 1) {
         if (mavlink_parse_char(MAVLINK_COMM_0, b, &msg, &mav_status)) {
             double tnow = get_time_seconds();
-            t1 = get_time_seconds();
-
             if (msg.msgid == MAVLINK_MSG_ID_RAW_IMU) {
                 // printf("msgid=%u dt=%f\n", msg.msgid, tnow - last_msg_s);
                 last_msg_s = tnow;
@@ -198,16 +194,6 @@ void dataStream::imu_recv_thread()
                 // Request IMU messages at 200Hz
                 mav_set_message_rate(MAVLINK_MSG_ID_RAW_IMU, 200);
             }
-
-            t2 = get_time_seconds();
-            count += 1;
-            sum += t2 - t1;
-            if (count == 100)
-            {
-                printf("T_avg for requesting one IMU msg is %d s.", sum/count);
-                count = 0.0;
-                sum = 0.0;
-            }
         }
     }
     double tnow = get_time_seconds();
@@ -229,11 +215,8 @@ void dataStream::cam_recv_thread()
 
     float gain = 1e-4;
 
-    static double t1, t2, count, sum;
-
     for(;;)
     {
-        t1 = get_time_seconds();
         cap >> frame;
         if(frame.empty())
         {
@@ -270,28 +253,15 @@ void dataStream::cam_recv_thread()
         {
             exposure = 1e-6;
         }
-
-        t2 = get_time_seconds();
-        count += 1;
-        sum += t2 - t1;
-        if (count == 10)
-        {
-            printf("T_avg for requesting one image is %d s.", sum/count);
-            count = 0.0;
-            sum = 0.0;
-        }
     }
 }
 
 void dataStream::cam_proc_thread()
 {
     while (true)
-    {
-        static double t1, t2, count, sum;
-        
+    {        
         if (!cam_queue.empty())
         {
-            t1 = get_time_seconds();
             mtx_cam_queue.lock();
             cam_msg tobeProc = cam_queue.back();
             mtx_cam_queue.unlock();           
@@ -300,17 +270,7 @@ void dataStream::cam_proc_thread()
             update_vp_estimate(stateEstimate);
             // Record output data
             outputFile << std::setprecision(20) << filter.getTime() << std::setprecision(5) << ", "
-                               << stateEstimate << std::endl;
-            t2 = get_time_seconds();
-            count += 1;
-            sum += t2 - t1;
-            if (count == 10)
-            {
-                printf("T_avg for processing one image is %d s.", sum/count);
-                count = 0.0;
-                sum = 0.0;
-            }
-            
+                               << stateEstimate << std::endl;            
         }
         usleep(100);
     }
@@ -321,12 +281,10 @@ void dataStream::imu_proc_thread()
 {
     while (true)
     {
-        static double t1, t2, count, sum;
 
         // If there's message in the queue, read the last one and pass into the filter.
         if (!imu_queue.empty())
         {
-            t1 = get_time_seconds();
             mtx_imu_queue.lock();
             IMUVelocity tobeProc = imu_queue.back();
             mtx_imu_queue.unlock();
@@ -334,16 +292,6 @@ void dataStream::imu_proc_thread()
             mtx_filter.lock();
             this->filter.processIMUData(tobeProc);
             mtx_filter.unlock();
-
-            t2 = get_time_seconds();
-            count += 1;
-            sum += t2 - t1;
-            if (count == 100)
-            {
-                printf("T_avg for processing one IMU msg is %d s.", sum/count);
-                count = 0.0;
-                sum = 0.0;
-            }
         }
         usleep(100);
     }
