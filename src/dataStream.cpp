@@ -1,8 +1,9 @@
 #include "eqf_vio/dataStream.h"
 
 // Used for store frame messages
-struct cam_msg {
-    cam_msg(double t, cv::Mat i) : t_now(t), img(i){}
+struct cam_msg
+{
+    cam_msg(double t, cv::Mat i) : t_now(t), img(i) {}
     double t_now;
     cv::Mat img;
 };
@@ -34,7 +35,7 @@ void mav_set_message_rate(uint32_t message_id, float rate_hz)
                                   0,
                                   message_id,
                                   (uint32_t)(1e6 / rate_hz),
-                                  0, 0, 0, 0, 0);    
+                                  0, 0, 0, 0, 0);
 }
 
 void send_heartbeat(void)
@@ -50,29 +51,29 @@ void send_heartbeat(void)
 static double get_time_seconds()
 {
     struct timeval tp;
-    gettimeofday(&tp,NULL);
-    return (tp.tv_sec + (tp.tv_usec*1.0e-6));
+    gettimeofday(&tp, NULL);
+    return (tp.tv_sec + (tp.tv_usec * 1.0e-6));
 }
 
-VisionMeasurement convertGIFTFeatures(const std::vector<GIFT::Feature>& GIFTFeatures, const double& stamp)
+VisionMeasurement convertGIFTFeatures(const std::vector<GIFT::Feature> &GIFTFeatures, const double &stamp)
 {
     VisionMeasurement measurement;
     measurement.stamp = stamp;
     measurement.numberOfBearings = GIFTFeatures.size();
     measurement.bearings.resize(GIFTFeatures.size());
-    std::transform(GIFTFeatures.begin(), GIFTFeatures.end(), measurement.bearings.begin(), [](const GIFT::Feature& f) {
-        Point3d pt;
-        pt.p = f.sphereCoordinates();
-        pt.id = f.idNumber;
-        return pt;
-    });
+    std::transform(GIFTFeatures.begin(), GIFTFeatures.end(), measurement.bearings.begin(), [](const GIFT::Feature &f)
+                   {
+                       Point3d pt;
+                       pt.p = f.sphereCoordinates();
+                       pt.id = f.idNumber;
+                       return pt;
+                   });
     return measurement;
 }
 
 // Start the IMU receiver and Camera capture threads
 dataStream::dataStream()
 {
-
 }
 
 // Kill the threads
@@ -82,30 +83,29 @@ dataStream::~dataStream()
     {
         stopThreads();
     }
-    catch(const std::exception& e)
+    catch (const std::exception &e)
     {
         std::cerr << e.what() << '\n';
     }
-    
 }
 
 // Callback function for images
 VIOState dataStream::callbackImage(const cv::Mat image, const double ts)
 {
     // Undistort the image
-    cv::Mat undistorted = image.clone();    
+    cv::Mat undistorted = image.clone();
     cv::Size imageSize = image.size();
-    cv::Mat mapX = cv::Mat(imageSize,CV_32FC1);
-    cv::Mat mapY = cv::Mat(imageSize,CV_32FC1);
-    cv::Mat iD = cv::Mat::eye(3,3,CV_32F);
-    cv::fisheye::initUndistortRectifyMap(K_coef,D_coef,iD,K_coef,imageSize,CV_32FC1,mapX,mapY);
-    cv::remap(image,undistorted,mapX, mapY, CV_INTER_LINEAR);
+    cv::Mat mapX = cv::Mat(imageSize, CV_32FC1);
+    cv::Mat mapY = cv::Mat(imageSize, CV_32FC1);
+    cv::Mat iD = cv::Mat::eye(3, 3, CV_32F);
+    cv::fisheye::initUndistortRectifyMap(K_coef, D_coef, iD, K_coef, imageSize, CV_32FC1, mapX, mapY);
+    cv::remap(image, undistorted, mapX, mapY, CV_INTER_LINEAR);
 
-    // Run GIFT on the undistorted image 
+    // Run GIFT on the undistorted image
     featureTracker.processImage(undistorted);
     const std::vector<GIFT::Feature> features = featureTracker.outputFeatures();
-    std::cout<< "New image received, with " << features.size() <<" features."<<std::endl;
-    cv::imwrite("test.jpg", undistorted);            
+    std::cout << "New image received, with " << features.size() << " features." << std::endl;
+    cv::imwrite("test.jpg", undistorted);
     const VisionMeasurement visionData = convertGIFTFeatures(features, ts);
 
     // Pass the feature data to the filter
@@ -119,8 +119,6 @@ VIOState dataStream::callbackImage(const cv::Mat image, const double ts)
     return estimatedState;
 }
 
-
-
 // Start the IMU receiver and Camera capture threads
 void dataStream::startThreads()
 {
@@ -128,21 +126,21 @@ void dataStream::startThreads()
     std::time_t t0 = std::time(nullptr);
     std::stringstream outputFileNameStream;
     outputFileNameStream << "EQF_VIO_output_" << std::put_time(std::localtime(&t0), "%F_%T") << ".csv";
-    
+
     outputFile = std::ofstream(outputFileNameStream.str());
     outputFile << "time, tx, ty, tz, qw, qx, qy, qz, vx, vy, vz, N, "
-                << "p1id, p1x, p1y, p1z, ..., ..., ..., ..., pNid, pNx, pNy, pNz" << std::endl;
-    
+               << "p1id, p1x, p1y, p1z, ..., ..., ..., ..., pNid, pNx, pNy, pNz" << std::endl;
+
     // Start the threads
     imu_recv_th = std::thread(&dataStream::imu_recv_thread, this);
     printf("Start receiving IMU message.\n");
-    
+
     imu_proc_th = std::thread(&dataStream::imu_proc_thread, this);
     printf("Start processing IMU message.\n");
-    
+
     cam_recv_th = std::thread(&dataStream::cam_recv_thread, this);
     printf("Start receiving camera frames.\n");
-    
+
     cam_proc_th = std::thread(&dataStream::cam_proc_thread, this);
     printf("Start processing camera frames.\n");
 }
@@ -151,10 +149,22 @@ void dataStream::startThreads()
 void dataStream::stopThreads()
 {
     usleep(100);
-    if (imu_recv_th.joinable()){imu_recv_th.join();}
-    if (cam_recv_th.joinable()){cam_recv_th.join();}
-    if (imu_proc_th.joinable()){imu_proc_th.join();}
-    if (cam_proc_th.joinable()){cam_proc_th.join();}
+    if (imu_recv_th.joinable())
+    {
+        imu_recv_th.join();
+    }
+    if (cam_recv_th.joinable())
+    {
+        cam_recv_th.join();
+    }
+    if (imu_proc_th.joinable())
+    {
+        imu_proc_th.join();
+    }
+    if (cam_proc_th.joinable())
+    {
+        cam_proc_th.join();
+    }
     printf("Threads stopped.\n");
 }
 
@@ -162,33 +172,40 @@ void dataStream::imu_recv_thread()
 {
     uint8_t b;
     mavlink_message_t msg;
-    mavlink_raw_imu_t raw_imu;   
+    mavlink_raw_imu_t raw_imu;
     IMUVelocity imuVel;
 
-    while (read(fd, &b, 1) == 1) {
-        if (mavlink_parse_char(MAVLINK_COMM_0, b, &msg, &mav_status)) {
+    while (read(fd, &b, 1) == 1)
+    {
+        if (mavlink_parse_char(MAVLINK_COMM_0, b, &msg, &mav_status))
+        {
             double tnow = get_time_seconds();
-            if (msg.msgid == MAVLINK_MSG_ID_RAW_IMU) {
+            if (msg.msgid == MAVLINK_MSG_ID_RAW_IMU)
+            {
+                double t1 = get_time_seconds();
                 // printf("msgid=%u dt=%f\n", msg.msgid, tnow - last_msg_s);
                 last_msg_s = tnow;
 
                 // Decode the mavlink msg and store in the filter format
                 mavlink_msg_raw_imu_decode(&msg, &raw_imu);
                 imuVel.stamp = tnow;
-                imuVel.omega << raw_imu.xgyro*gyro_factor, raw_imu.ygyro*gyro_factor, raw_imu.zgyro*gyro_factor;
-                imuVel.accel << raw_imu.xacc*acc_factor, raw_imu.yacc*acc_factor, raw_imu.zacc*acc_factor;
+                imuVel.omega << raw_imu.xgyro * gyro_factor, raw_imu.ygyro * gyro_factor, raw_imu.zgyro * gyro_factor;
+                imuVel.accel << raw_imu.xacc * acc_factor, raw_imu.yacc * acc_factor, raw_imu.zacc * acc_factor;
 
                 // Push the message to the queue.
                 // The maximum size of the queue is 10.
                 mtx_imu_queue.lock();
                 imu_queue.push(imuVel);
                 mtx_imu_queue.unlock();
-                if (imu_queue.size()>10)
+                if (imu_queue.size() > 10)
                 {
                     imu_queue.pop();
                 }
+                double t2 = get_time_seconds();
+                printf("imu_recv dt=%f\n.", t2 - t1);
             }
-            if (target_system == 0 && msg.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
+            if (target_system == 0 && msg.msgid == MAVLINK_MSG_ID_HEARTBEAT)
+            {
                 printf("Got system ID %u\n", msg.sysid);
                 target_system = msg.sysid;
                 // Request IMU messages at 200Hz
@@ -197,7 +214,8 @@ void dataStream::imu_recv_thread()
         }
     }
     double tnow = get_time_seconds();
-    if (tnow - last_hb_s > 1.0) {
+    if (tnow - last_hb_s > 1.0)
+    {
         last_hb_s = tnow;
         send_heartbeat();
     }
@@ -207,40 +225,48 @@ void dataStream::cam_recv_thread()
 {
     // Start video capture, disable auto exposure tuning.
     cv::VideoCapture cap(0);
-    cap.set(CV_CAP_PROP_AUTO_EXPOSURE,0.25);
+    cap.set(CV_CAP_PROP_AUTO_EXPOSURE, 0.25);
     cap.set(CV_CAP_PROP_EXPOSURE, 1.7);
     cv::Mat frame;
-    float exposure;  
-    if ( indoor_lighting ){ exposure =0.5; } else{ exposure = 0.001; }
+    float exposure;
+    if (indoor_lighting)
+    {
+        exposure = 0.5;
+    }
+    else
+    {
+        exposure = 0.001;
+    }
 
     float gain = 1e-4;
 
-    for(;;)
+    for (;;)
     {
+        double t1 = get_time_seconds();
         cap >> frame;
-        if(frame.empty())
+        if (frame.empty())
         {
             std::cerr << "Something is wrong with the webcam, could not get frame." << std::endl;
             break;
         }
-        double tnow_cam = get_time_seconds();
+        double t2 = get_time_seconds();
 
         // Add new message to the queue. The size limit is 2.
         mtx_cam_queue.lock();
-        cam_queue.push(cam_msg(tnow_cam, frame));
+        cam_queue.push(cam_msg(t1, frame));
         mtx_cam_queue.unlock();
         if (cam_queue.size() > 2)
         {
             cam_queue.pop();
         }
-        // printf("cam_cap dt=%f\n", tnow_cam - last_msg_s_cam);
+        printf("cam_cap dt=%f\n", t2 - t1);
         // last_msg_s_cam = tnow_cam;
 
         // Adjust camera exposure
         cap.set(CV_CAP_PROP_EXPOSURE, exposure);
         cv::Scalar img_mean_s = cv::mean(frame);
         float img_mean = img_mean_s[0];
-        if (img_mean > 128-32 && img_mean < 128+32)
+        if (img_mean > 128 - 32 && img_mean < 128 + 32)
         {
             continue;
         }
@@ -249,7 +275,7 @@ void dataStream::cam_recv_thread()
         {
             exposure = 0.7;
         }
-        else if (exposure <=0.0)
+        else if (exposure <= 0.0)
         {
             exposure = 1e-6;
         }
@@ -259,22 +285,26 @@ void dataStream::cam_recv_thread()
 void dataStream::cam_proc_thread()
 {
     while (true)
-    {        
+    {
         if (!cam_queue.empty())
         {
+            double t1 = get_time_seconds();
             mtx_cam_queue.lock();
             cam_msg tobeProc = cam_queue.back();
-            mtx_cam_queue.unlock();           
+            mtx_cam_queue.unlock();
             VIOState stateEstimate = callbackImage(tobeProc.img, tobeProc.t_now);
+            double t2 = get_time_seconds();
+            printf("cam_proc dt=%f\n", t2 - t1);
             // Send VP message to AutoPilot
             update_vp_estimate(stateEstimate);
+            double t3 = get_time_seconds();
+            printf("send_msg dt=%f\n", t3 - t2);
             // Record output data
             outputFile << std::setprecision(20) << filter.getTime() << std::setprecision(5) << ", "
-                               << stateEstimate << std::endl;            
+                       << stateEstimate << std::endl;
         }
         usleep(100);
     }
-    
 }
 
 void dataStream::imu_proc_thread()
@@ -285,6 +315,7 @@ void dataStream::imu_proc_thread()
         // If there's message in the queue, read the last one and pass into the filter.
         if (!imu_queue.empty())
         {
+            double t1 = get_time_seconds();
             mtx_imu_queue.lock();
             IMUVelocity tobeProc = imu_queue.back();
             mtx_imu_queue.unlock();
@@ -292,6 +323,8 @@ void dataStream::imu_proc_thread()
             mtx_filter.lock();
             this->filter.processIMUData(tobeProc);
             mtx_filter.unlock();
+            double t2 = get_time_seconds();
+            printf("imu_proc dt=%f\n.", t2 - t1);
         }
         usleep(100);
     }
@@ -313,14 +346,17 @@ void dataStream::update_vp_estimate(const VIOState estimatedState)
         printf("time_off_us %llu\n", (long long unsigned)time_offset_us);
     }
 
-    if (now_us - last_observation_usec < 20000){ return; }
+    if (now_us - last_observation_usec < 20000)
+    {
+        return;
+    }
 
     // Load estimates from the filter
-    const Eigen::Quaterniond& attitude = estimatedState.pose.R().asQuaternion();
-    const Eigen::Vector3d& position = estimatedState.pose.x();
-    const Eigen::Vector3d& vel = estimatedState.velocity;
+    const Eigen::Quaterniond &attitude = estimatedState.pose.R().asQuaternion();
+    const Eigen::Vector3d &position = estimatedState.pose.x();
+    const Eigen::Vector3d &vel = estimatedState.velocity;
 
-    Eigen::Vector3d euler = attitude.toRotationMatrix().eulerAngles(0,1,2);
+    Eigen::Vector3d euler = attitude.toRotationMatrix().eulerAngles(0, 1, 2);
     float roll = euler[0];
     float pitch = euler[1];
     float yaw = euler[2];
@@ -351,7 +387,6 @@ void dataStream::update_vp_estimate(const VIOState estimatedState)
             vel.x(),
             vel.y(),
             vel.z(),
-            NULL, 0
-        );
+            NULL, 0);
     }
 }
