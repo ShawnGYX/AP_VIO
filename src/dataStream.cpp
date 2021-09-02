@@ -99,7 +99,7 @@ VIOState dataStream::callbackImage(const cv::Mat image, const double ts)
     cv::Mat mapY = cv::Mat(imageSize, CV_32FC1);
     cv::Mat iD = cv::Mat::eye(3, 3, CV_32F);
     cv::fisheye::initUndistortRectifyMap(K_coef, D_coef, iD, K_coef, imageSize, CV_32FC1, mapX, mapY);
-    cv::remap(image, undistorted, mapX, mapY, CV_INTER_LINEAR);
+    cv::remap(image, undistorted, mapX, mapY, cv::INTER_LINEAR);
 
     // Run GIFT on the undistorted image
     featureTracker.processImage(undistorted);
@@ -226,8 +226,8 @@ void dataStream::cam_recv_thread()
 {
     // Start video capture, disable auto exposure tuning.
     cv::VideoCapture cap(0);
-    cap.set(CV_CAP_PROP_AUTO_EXPOSURE, 0.25);
-    cap.set(CV_CAP_PROP_EXPOSURE, 1.7);
+    cap.set(cv::CAP_PROP_AUTO_EXPOSURE, 0.25);
+    cap.set(cv::CAP_PROP_EXPOSURE, 1.7);
     cv::Mat frame;
     float exposure;  
     if ( indoor_lighting ){ exposure =0.3; } else{ exposure = 0.001; }
@@ -257,7 +257,7 @@ void dataStream::cam_recv_thread()
         // last_msg_s_cam = tnow_cam;
 
         // Adjust camera exposure
-        cap.set(CV_CAP_PROP_EXPOSURE, exposure);
+        cap.set(cv::CAP_PROP_EXPOSURE, exposure);
         cv::Scalar img_mean_s = cv::mean(frame);
         float img_mean = img_mean_s[0];
         if (img_mean > 128 - 32 && img_mean < 128 + 32)
