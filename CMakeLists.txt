@@ -18,7 +18,7 @@ set(DEFAULT_CONFIG_FILE "EQF_VIO_config_template.yaml")
 get_filename_component(DEFAULT_CONFIG_FILE ${DEFAULT_CONFIG_FILE} ABSOLUTE)
 add_compile_definitions(DEFAULT_CONFIG_FILE="${DEFAULT_CONFIG_FILE}")
 
-option( USE_MARCH_NATIVE "Use the flag -march=native" ON)
+option( USE_MARCH_NATIVE "Use the flag -march=native" OFF)
 
 if (USE_MARCH_NATIVE AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
     include(CheckCXXCompilerFlag)

@@ -189,8 +189,9 @@ void dataStream::imu_recv_thread()
                 // Decode the mavlink msg and store in the filter format
                 mavlink_msg_raw_imu_decode(&msg, &raw_imu);
                 imuVel.stamp = tnow;
-                imuVel.omega << raw_imu.xgyro * gyro_factor, raw_imu.ygyro * gyro_factor, raw_imu.zgyro * gyro_factor;
-                imuVel.accel << raw_imu.xacc * acc_factor, raw_imu.yacc * acc_factor, raw_imu.zacc * acc_factor;
+                // printf("IMU ts is: %f", tnow);
+                imuVel.omega << raw_imu.xgyro*gyro_factor, raw_imu.ygyro*gyro_factor, raw_imu.zgyro*gyro_factor;
+                imuVel.accel << raw_imu.xacc*acc_factor, raw_imu.yacc*acc_factor, raw_imu.zacc*acc_factor;
 
                 // Push the message to the queue.
                 // The maximum size of the queue is 10.
@@ -228,15 +229,8 @@ void dataStream::cam_recv_thread()
     cap.set(CV_CAP_PROP_AUTO_EXPOSURE, 0.25);
     cap.set(CV_CAP_PROP_EXPOSURE, 1.7);
     cv::Mat frame;
-    float exposure;
-    if (indoor_lighting)
-    {
-        exposure = 0.5;
-    }
-    else
-    {
-        exposure = 0.001;
-    }
+    float exposure;  
+    if ( indoor_lighting ){ exposure =0.3; } else{ exposure = 0.001; }
 
     float gain = 1e-4;
 
