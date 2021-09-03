@@ -67,6 +67,11 @@ target_include_directories(ap_vio_lib
     PUBLIC ${EIGEN_INCLUDE_DIRS}
 )
 
+target_link_libraries(ap_vio_lib
+    ${MODULE_LIBS}
+    ${OpenCV_LIBS}
+)
+
 
 find_package(OpenCV REQUIRED)
 find_package(GIFT REQUIRED)
