@@ -11,7 +11,7 @@ find_package(yaml-cpp REQUIRED)
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 
 # Set your own GIFT directory, usually in '../GIFT/build/GIFT'
-set(GIFT_DIR "/home/shawn/Projects//GIFT/build/GIFT")
+set(GIFT_DIR "/home/shawn/Projects/GIFT/build/GIFT")
 
 
 set(DEFAULT_CONFIG_FILE "EQF_VIO_config_template.yaml")
