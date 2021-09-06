@@ -10,9 +10,8 @@ find_package(yaml-cpp REQUIRED)
 
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 
-# Set your own GIFT directory, usually in '../GIFT/build/GIFT'
-set(GIFT_DIR "/home/shawn/Projects/GIFT/build/GIFT")
-
+include_directories("/usr/include/eigen3") 
+include_directories ("/usr/include/opencv4/")
 
 set(DEFAULT_CONFIG_FILE "EQF_VIO_config_template.yaml")
 get_filename_component(DEFAULT_CONFIG_FILE ${DEFAULT_CONFIG_FILE} ABSOLUTE)
@@ -75,8 +74,6 @@ target_link_libraries(ap_vio_lib
 
 find_package(OpenCV REQUIRED)
 find_package(GIFT REQUIRED)
-
-include_directories ("/usr/include/opencv4/")
 
 add_executable(vio_ap src/main_ap.cpp)
 

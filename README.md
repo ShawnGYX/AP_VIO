@@ -34,16 +34,14 @@ make -j2
 
 ### Known Issue
 
-- When running ```cmake ..``` , CMake can't locate GIFT headers and returns an error. This can be fixed by manually setting the GIFT directory in ```CMakelist.txt``` . In line 14, change the address in the quotes to the one where you build GIFT on your device (e.g ```/home/GIFT/build/GIFT```).
+- 
 
 ## Preparations
 
 ### Camera Calibration 
+We use a checkerboard to calibrate the camera. Download the tools from ```https://github.com/STR-ANU/VIO-Tools```.
 
 ### Camera-IMU Calibration
-
-### Configuration File
-
 
 
 ## Usage Instructions

@@ -106,20 +106,13 @@ int main(int argc, const char *argv[])
     ds.D_coef = cv::Mat(1, 4, CV_32F, d);
     
     VIOFilter::Settings filterSettings(eqf_vioConfig["eqf"]);
-
     ds.filter = VIOFilter(filterSettings);
-    ds.featureTracker = GIFT::PointFeatureTracker(camera);
+    std::cout << "Filter initialized." << std::endl;
 
-    // safeConfig(eqf_vioConfig["GIFT"]["maxFeatures"], ds.featureTracker.maxFeatures);
-    // safeConfig(eqf_vioConfig["GIFT"]["featureDist"], ds.featureTracker.featureDist);
-    // safeConfig(eqf_vioConfig["GIFT"]["minHarrisQuality"], ds.featureTracker.minHarrisQuality);
-    // safeConfig(eqf_vioConfig["GIFT"]["featureSearchThreshold"], ds.featureTracker.featureSearchThreshold);
-    // safeConfig(eqf_vioConfig["GIFT"]["maxError"], ds.featureTracker.maxError);
-    // safeConfig(eqf_vioConfig["GIFT"]["winSize"], ds.featureTracker.winSize);
-    // safeConfig(eqf_vioConfig["GIFT"]["maxLevel"], ds.featureTracker.maxLevel);
-     ds.featureTracker.settings.configure(eqf_vioConfig["GIFT"]);
-    
+    ds.featureTracker = GIFT::PointFeatureTracker(camera);
+    ds.featureTracker.settings.configure(eqf_vioConfig["GIFT"]);
     ds.indoor_lighting = eqf_vioConfig["main"]["indoorLighting"].as<bool>();
+    std::cout << "Feature tracker initialized." << std::endl;
     
     // Open the given serial port
     int opt;

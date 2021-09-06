@@ -133,16 +133,14 @@ void dataStream::startThreads()
 
     // Start the threads
     imu_recv_th = std::thread(&dataStream::imu_recv_thread, this);
-    printf("Start receiving IMU message.\n");
-
+    // printf("Start receiving IMU message.\n");
     imu_proc_th = std::thread(&dataStream::imu_proc_thread, this);
-    printf("Start processing IMU message.\n");
-
+    // printf("Start processing IMU message.\n");
     cam_recv_th = std::thread(&dataStream::cam_recv_thread, this);
-    printf("Start receiving camera frames.\n");
-
+    // printf("Start receiving camera frames.\n");
     cam_proc_th = std::thread(&dataStream::cam_proc_thread, this);
-    printf("Start processing camera frames.\n");
+    // printf("Start processing camera frames.\n");
+    printf("All threads initialized.");
 }
 
 // Kill the threads
@@ -183,13 +181,11 @@ void dataStream::imu_recv_thread()
             if (msg.msgid == MAVLINK_MSG_ID_RAW_IMU)
             {
                 double t1 = get_time_seconds();
-                // printf("msgid=%u dt=%f\n", msg.msgid, tnow - last_msg_s);
                 last_msg_s = tnow;
 
                 // Decode the mavlink msg and store in the filter format
                 mavlink_msg_raw_imu_decode(&msg, &raw_imu);
                 imuVel.stamp = tnow;
-                // printf("IMU ts is: %f", tnow);
                 imuVel.omega << raw_imu.xgyro*gyro_factor, raw_imu.ygyro*gyro_factor, raw_imu.zgyro*gyro_factor;
                 imuVel.accel << raw_imu.xacc*acc_factor, raw_imu.yacc*acc_factor, raw_imu.zacc*acc_factor;
 
@@ -254,7 +250,6 @@ void dataStream::cam_recv_thread()
             cam_queue.pop();
         }
         printf("cam_cap dt=%f\n", t2 - t1);
-        // last_msg_s_cam = tnow_cam;
 
         // Adjust camera exposure
         cap.set(cv::CAP_PROP_EXPOSURE, exposure);
@@ -288,11 +283,9 @@ void dataStream::cam_proc_thread()
             mtx_cam_queue.unlock();
             VIOState stateEstimate = callbackImage(tobeProc.img, tobeProc.t_now);
             double t2 = get_time_seconds();
-            printf("cam_proc dt=%f\n", t2 - t1);
             // Send VP message to AutoPilot
             update_vp_estimate(stateEstimate);
             double t3 = get_time_seconds();
-            printf("send_msg dt=%f\n", t3 - t2);
             // Record output data
             outputFile << std::setprecision(20) << filter.getTime() << std::setprecision(5) << ", "
                        << stateEstimate << std::endl;
@@ -313,12 +306,10 @@ void dataStream::imu_proc_thread()
             mtx_imu_queue.lock();
             IMUVelocity tobeProc = imu_queue.back();
             mtx_imu_queue.unlock();
-
             mtx_filter.lock();
             this->filter.processIMUData(tobeProc);
             mtx_filter.unlock();
             double t2 = get_time_seconds();
-            printf("imu_proc dt=%f\n.", t2 - t1);
         }
         usleep(100);
     }
