@@ -68,6 +68,7 @@ class dataStream{
     void imu_proc_thread();
     void update_vp_estimate(const VIOState estimatedState);
     std::ofstream outputFile;
+    std::ofstream internalFile;
     bool indoor_lighting;
     int fd;
 

@@ -48,3 +48,13 @@ VisionMeasurement outputCoordinateChartInv(const Eigen::VectorXd& delta, const V
 
     return y;
 }
+
+std::ostream& operator<<(std::ostream& os, const VisionMeasurement& measurement) {
+    const int Num = measurement.numberOfBearings;
+    const double ts = measurement.stamp;
+    os << std::setprecision(20) <<  ts << std::setprecision(5) << ", , , , , , ," << Num;
+    for (const Point3d& blm: measurement.bearings) {
+        os << ", " << blm.id << ", " << blm.p.x() << ", " << blm.p.y() << ", " << blm.p.z();
+    }
+    return os;
+}

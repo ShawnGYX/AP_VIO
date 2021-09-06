@@ -19,6 +19,8 @@
 
 #include "eigen3/Eigen/Eigen"
 #include <vector>
+#include <ostream>
+#include <iomanip>
 
 struct Point3d;
 struct VisionMeasurement {
@@ -29,3 +31,5 @@ struct VisionMeasurement {
 
 Eigen::VectorXd outputCoordinateChart(const VisionMeasurement& y, const VisionMeasurement& y0);
 VisionMeasurement outputCoordinateChartInv(const Eigen::VectorXd& delta, const VisionMeasurement& y0);
+
+std::ostream& operator<<(std::ostream& os, const VisionMeasurement& measurement);

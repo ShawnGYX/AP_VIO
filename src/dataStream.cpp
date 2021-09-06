@@ -74,7 +74,7 @@ VisionMeasurement convertGIFTFeatures(const std::vector<GIFT::Feature> &GIFTFeat
 // Start the IMU receiver and Camera capture threads
 dataStream::dataStream()
 {
-    
+
 }
 
 // Kill the threads
@@ -107,6 +107,7 @@ VIOState dataStream::callbackImage(const cv::Mat image, const double ts)
     const std::vector<GIFT::Feature> features = featureTracker.outputFeatures();
     std::cout << "New image received, with " << features.size() << " features." << std::endl;
     const VisionMeasurement visionData = convertGIFTFeatures(features, ts);
+    internalFile << visionData << std::endl;
 
     // Pass the feature data to the filter
     mtx_filter.lock();
@@ -122,14 +123,20 @@ VIOState dataStream::callbackImage(const cv::Mat image, const double ts)
 // Start the IMU receiver and Camera capture threads
 void dataStream::startThreads()
 {
-    // Set output file, add header
+    // Set up output file, add header
     std::time_t t0 = std::time(nullptr);
     std::stringstream outputFileNameStream;
     outputFileNameStream << "EQF_VIO_output_" << std::put_time(std::localtime(&t0), "%F_%T") << ".csv";
-
     outputFile = std::ofstream(outputFileNameStream.str());
     outputFile << "time, tx, ty, tz, qw, qx, qy, qz, vx, vy, vz, N, "
                << "p1id, p1x, p1y, p1z, ..., ..., ..., ..., pNid, pNx, pNy, pNz" << std::endl;
+
+    // Set up recording file
+    std::stringstream internalFileNameStream;
+    internalFileNameStream << "EQF_VIO_internal_" << std::put_time(std::localtime(&t0), "%F_%T") << ".csv";
+    internalFile = std::ofstream(internalFileNameStream.str());
+    internalFile << "time, gyro_x, gyro_y, gyro_z, accel_x, accel_y, accel_z, N, "
+                 << "p1id, p1x, p1y, p1z, ..., ..., ..., ..., pNid, pNx, pNy, pNz" << std::endl;
 
     // Start the threads
     imu_recv_th = std::thread(&dataStream::imu_recv_thread, this);
@@ -188,6 +195,9 @@ void dataStream::imu_recv_thread()
                 imuVel.omega << raw_imu.xgyro*gyro_factor, raw_imu.ygyro*gyro_factor, raw_imu.zgyro*gyro_factor;
                 imuVel.accel << raw_imu.xacc*acc_factor, raw_imu.yacc*acc_factor, raw_imu.zacc*acc_factor;
 
+                internalFile << std::setprecision(20) << tnow << std::setprecision(5) << ", ";
+                internalFile << imuVel.omega.x() << ", " << imuVel.omega.y() << ", " << imuVel.omega.z() << ", ";
+                internalFile << imuVel.accel.x() << ", " << imuVel.accel.y() << ", " << imuVel.accel.z() << ", " << std::endl;
                 // Push the message to the queue.
                 // The maximum size of the queue is 10.
                 mtx_imu_queue.lock();
