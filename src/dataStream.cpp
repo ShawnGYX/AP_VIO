@@ -147,7 +147,7 @@ void dataStream::startThreads()
     // printf("Start receiving camera frames.\n");
     cam_proc_th = std::thread(&dataStream::cam_proc_thread, this);
     // printf("Start processing camera frames.\n");
-    printf("All threads initialized.");
+    printf("All threads initialized.\n");
 }
 
 // Kill the threads
