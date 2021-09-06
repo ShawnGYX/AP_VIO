@@ -74,6 +74,7 @@ VisionMeasurement convertGIFTFeatures(const std::vector<GIFT::Feature> &GIFTFeat
 // Start the IMU receiver and Camera capture threads
 dataStream::dataStream()
 {
+    
 }
 
 // Kill the threads
@@ -105,7 +106,6 @@ VIOState dataStream::callbackImage(const cv::Mat image, const double ts)
     featureTracker.processImage(undistorted);
     const std::vector<GIFT::Feature> features = featureTracker.outputFeatures();
     std::cout << "New image received, with " << features.size() << " features." << std::endl;
-    cv::imwrite("test.jpg", undistorted);
     const VisionMeasurement visionData = convertGIFTFeatures(features, ts);
 
     // Pass the feature data to the filter
@@ -180,7 +180,6 @@ void dataStream::imu_recv_thread()
             double tnow = get_time_seconds();
             if (msg.msgid == MAVLINK_MSG_ID_RAW_IMU)
             {
-                double t1 = get_time_seconds();
                 last_msg_s = tnow;
 
                 // Decode the mavlink msg and store in the filter format
@@ -198,8 +197,6 @@ void dataStream::imu_recv_thread()
                 {
                     imu_queue.pop();
                 }
-                double t2 = get_time_seconds();
-                // printf("imu_recv dt=%f\n.", t2 - t1);
             }
             if (target_system == 0 && msg.msgid == MAVLINK_MSG_ID_HEARTBEAT)
             {
@@ -239,7 +236,6 @@ void dataStream::cam_recv_thread()
             std::cerr << "Something is wrong with the webcam, could not get frame." << std::endl;
             break;
         }
-        double t2 = get_time_seconds();
 
         // Add new message to the queue. The size limit is 2.
         mtx_cam_queue.lock();
@@ -249,8 +245,6 @@ void dataStream::cam_recv_thread()
         {
             cam_queue.pop();
         }
-        // printf("cam_cap dt=%f\n", t2 - t1);
-        // last_msg_s_cam = tnow_cam;
 
         // Adjust camera exposure
         cap.set(cv::CAP_PROP_EXPOSURE, exposure);
@@ -278,17 +272,13 @@ void dataStream::cam_proc_thread()
     {
         if (!cam_queue.empty())
         {
-            double t1 = get_time_seconds();
             mtx_cam_queue.lock();
             cam_msg tobeProc = cam_queue.back();
             mtx_cam_queue.unlock();
             VIOState stateEstimate = callbackImage(tobeProc.img, tobeProc.t_now);
-            double t2 = get_time_seconds();
-            // printf("cam_proc dt=%f\n", t2 - t1);
+
             // Send VP message to AutoPilot
             update_vp_estimate(stateEstimate);
-            double t3 = get_time_seconds();
-            // printf("send_msg dt=%f\n", t3 - t2);
             // Record output data
             outputFile << std::setprecision(20) << filter.getTime() << std::setprecision(5) << ", "
                        << stateEstimate << std::endl;
@@ -301,19 +291,15 @@ void dataStream::imu_proc_thread()
 {
     while (true)
     {
-
         // If there's message in the queue, read the last one and pass into the filter.
         if (!imu_queue.empty())
         {
-            double t1 = get_time_seconds();
             mtx_imu_queue.lock();
             IMUVelocity tobeProc = imu_queue.back();
             mtx_imu_queue.unlock();
             mtx_filter.lock();
             this->filter.processIMUData(tobeProc);
             mtx_filter.unlock();
-            double t2 = get_time_seconds();
-            // printf("imu_proc dt=%f\n.", t2 - t1);
         }
         usleep(100);
     }
