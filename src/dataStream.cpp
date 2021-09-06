@@ -199,7 +199,7 @@ void dataStream::imu_recv_thread()
                     imu_queue.pop();
                 }
                 double t2 = get_time_seconds();
-                printf("imu_recv dt=%f\n.", t2 - t1);
+                // printf("imu_recv dt=%f\n.", t2 - t1);
             }
             if (target_system == 0 && msg.msgid == MAVLINK_MSG_ID_HEARTBEAT)
             {
@@ -249,7 +249,8 @@ void dataStream::cam_recv_thread()
         {
             cam_queue.pop();
         }
-        printf("cam_cap dt=%f\n", t2 - t1);
+        // printf("cam_cap dt=%f\n", t2 - t1);
+        // last_msg_s_cam = tnow_cam;
 
         // Adjust camera exposure
         cap.set(cv::CAP_PROP_EXPOSURE, exposure);
@@ -283,9 +284,11 @@ void dataStream::cam_proc_thread()
             mtx_cam_queue.unlock();
             VIOState stateEstimate = callbackImage(tobeProc.img, tobeProc.t_now);
             double t2 = get_time_seconds();
+            // printf("cam_proc dt=%f\n", t2 - t1);
             // Send VP message to AutoPilot
             update_vp_estimate(stateEstimate);
             double t3 = get_time_seconds();
+            // printf("send_msg dt=%f\n", t3 - t2);
             // Record output data
             outputFile << std::setprecision(20) << filter.getTime() << std::setprecision(5) << ", "
                        << stateEstimate << std::endl;
@@ -310,6 +313,7 @@ void dataStream::imu_proc_thread()
             this->filter.processIMUData(tobeProc);
             mtx_filter.unlock();
             double t2 = get_time_seconds();
+            // printf("imu_proc dt=%f\n.", t2 - t1);
         }
         usleep(100);
     }
