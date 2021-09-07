@@ -1,51 +1,25 @@
-// Copyright (C) 2021 Pieter van Goor
-// 
-// This file is part of EqF VIO.
-// 
-// EqF VIO is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-// 
-// EqF VIO is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-// 
-// You should have received a copy of the GNU General Public License
-// along with EqF VIO.  If not, see <http://www.gnu.org/licenses/>.
-
 #pragma once
 
 #include <memory>
 #include <ostream>
 
-#include "IMUVelocity.h"
-#include "VIOGroup.h"
-#include "VIOState.h"
-#include "VisionMeasurement.h"
+#include "eqf_vio/CSVReader.h"
+#include "eqf_vio/EqFMatrices.h"
+#include "eqf_vio/IMUVelocity.h"
+#include "eqf_vio/VIOGroup.h"
+#include "eqf_vio/VIOState.h"
+#include "eqf_vio/VisionMeasurement.h"
 
-#define SIGMA_BASE_SIZE 11
-
-struct AuxiliaryFilterData {
-    Eigen::Quaterniond initialAttitude;
-    Eigen::Vector3d initialPosition;
-    double initialTime;
-    double measurementVariance = 0.1;
-    double processVariance = 1.0;
-    double omegaVariance = 0.1;
-    double accelVariance = 0.1;
-    SE3 cameraOffset = SE3::Identity();
-};
+constexpr int FilterBaseDim = IMUVelocity::CompDim + VIOSensorState::CompDim;
 
 class VIOFilter {
   protected:
-    AuxiliaryFilterData auxData;
+    EqFCoordinateSuite const* coordinateSuite = &EqFCoordinateSuite_euclid;
 
     Eigen::Matrix<double, 6, 1> inputBias = Eigen::Matrix<double, 6, 1>::Zero();
     VIOState xi0;
     VIOGroup X = VIOGroup::Identity();
-    Eigen::MatrixXd Sigma = Eigen::MatrixXd::Identity(SIGMA_BASE_SIZE, SIGMA_BASE_SIZE);
+    Eigen::MatrixXd Sigma = Eigen::MatrixXd::Identity(FilterBaseDim, FilterBaseDim);
 
     bool initialisedFlag = false;
     double currentTime = -1;
@@ -56,10 +30,15 @@ class VIOFilter {
 
     bool integrateUpToTime(const double& newTime, const bool doRiccati = true);
     void addNewLandmarks(const VisionMeasurement& measurement);
-    void removeOldLandmarks(const VisionMeasurement& measurement);
+    void addNewLandmarks(std::vector<Landmark>& newLandmarks);
+    void removeOldLandmarks(const std::vector<int>& measurementIds);
     void removeOutliers(VisionMeasurement& measurement);
-    void removeLandmarkAtIndex(const int& idx);
-    VisionMeasurement matchMeasurementsToState(const VisionMeasurement& measurement) const;
+    void removeLandmarkByIndex(const int& idx);
+    void removeLandmarkById(const int& id);
+    double getMedianSceneDepth() const;
+
+    Eigen::Matrix3d getLandmarkCovById(const int& id) const;
+    Eigen::Matrix2d getOutputCovById(const int& id, const Eigen::Vector2d& y, const GIFT::GICameraPtr& camPtr) const;
 
   public:
     // Settings
@@ -68,23 +47,21 @@ class VIOFilter {
 
     // Setup
     VIOFilter() = default;
-    VIOFilter(const AuxiliaryFilterData& auxiliaryData);
-    VIOFilter(const AuxiliaryFilterData& auxiliaryData, const VIOFilter::Settings& settings);
     VIOFilter(const VIOFilter::Settings& settings);
     void initialiseFromIMUData(const IMUVelocity& imuVelocity);
-    void reset();
+    void setState(const VIOState& xi);
 
     // Input
-    void setAuxiliaryData(const AuxiliaryFilterData& auxiliaryData);
-    void setInertialPoints(const std::vector<Point3d>& inertialPoints);
     void processIMUData(const IMUVelocity& imuVelocity);
     void processVisionData(const VisionMeasurement& measurement);
 
     // Output
     double getTime() const;
+    bool isInitialised() const { return initialisedFlag; };
+    VisionMeasurement getBearingPredictions(const GIFT::GICameraPtr& camPtr, const double& stamp = -1);
     VIOState stateEstimate() const;
     Eigen::MatrixXd stateCovariance() const;
-    friend std::ostream& operator<<(std::ostream& os, const VIOFilter& filter);
+    friend CSVLine& operator<<(CSVLine& line, const VIOFilter& filter);
 };
 
-std::ostream& operator<<(std::ostream& os, const VIOFilter& filter);
+CSVLine& operator<<(CSVLine& line, const VIOFilter& filter);

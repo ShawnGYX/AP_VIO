@@ -1,64 +1,29 @@
-// Copyright (C) 2021 Pieter van Goor
-// 
-// This file is part of EqF VIO.
-// 
-// EqF VIO is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-// 
-// EqF VIO is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-// 
-// You should have received a copy of the GNU General Public License
-// along with EqF VIO.  If not, see <http://www.gnu.org/licenses/>.
-
 #pragma once
 
 #include "eqf_vio/VIOGroup.h"
 #include <functional>
 
-struct EqFStateMatrixA {
-    const std::function<Eigen::MatrixXd(const VIOGroup&, const VIOManifoldState&, const IMUVelocity&)> stateMatrixA;
-    const std::function<Eigen::VectorXd(const VIOManifoldState&, const VIOManifoldState&)>& coordinateChart;
-    const std::function<VIOManifoldState(const Eigen::VectorXd&, const VIOManifoldState&)>& coordinateChartInv;
+struct EqFCoordinateSuite {
+    // State and output space charts
+    const CoordinateChart<VIOState>& stateChart;
 
-    Eigen::MatrixXd operator()(const VIOGroup& X, const VIOManifoldState& xi0, const IMUVelocity& imuVel) const {
-        return this->stateMatrixA(X, xi0, imuVel);
-    };
-};
-struct EqFInputMatrixB {
-    const std::function<Eigen::MatrixXd(const VIOGroup&, const VIOManifoldState&)> inputMatrixB;
-    const std::function<Eigen::VectorXd(const VIOManifoldState&, const VIOManifoldState&)>& coordinateChart;
+    // Matrices for Riccati term
+    const std::function<Eigen::MatrixXd(const VIOGroup&, const VIOState&, const IMUVelocity&)> stateMatrixA;
+    const std::function<Eigen::MatrixXd(const VIOGroup&, const VIOState&)> inputMatrixB;
+    const std::function<Eigen::Matrix<double, 2, 3>(
+        const Eigen::Vector3d& q0, const liepp::SOT3d& QHat, const GIFT::GICameraPtr& camPtr, const Eigen::Vector2d& y)>
+        outputMatrixCi;
 
-    Eigen::MatrixXd operator()(const VIOGroup& X, const VIOManifoldState& xi0) const {
-        return this->inputMatrixB(X, xi0);
-    };
-};
+    const Eigen::MatrixXd outputMatrixC(const VIOState& xi0, const VIOGroup& X, const VisionMeasurement& y) const;
 
-struct EqFOutputMatrixC {
-    const std::function<Eigen::MatrixXd(const VIOManifoldState&)> outputMatrixC;
-    const std::function<VIOManifoldState(const Eigen::VectorXd&, const VIOManifoldState&)>& stateChartInv;
-    const std::function<Eigen::VectorXd(const VisionMeasurement&, const VisionMeasurement&)>& outputChart;
-
-    Eigen::MatrixXd operator()(const VIOManifoldState& xi0) const { return this->outputMatrixC(xi0); };
+    // Innovation lift
+    const std::function<VIOAlgebra(const Eigen::VectorXd&, const VIOState&)> liftInnovation;
+    const std::function<VIOGroup(const Eigen::VectorXd&, const VIOState&)> liftInnovationDiscrete;
+    const std::function<Eigen::VectorXd(
+        const Eigen::VectorXd&, const VIOState&, const VIOGroup&, const Eigen::MatrixXd&)>
+        bundleLift;
 };
 
-extern const EqFStateMatrixA EqFStateMatrixA_euclid;
-extern const EqFInputMatrixB EqFInputMatrixB_euclid;
-extern const EqFOutputMatrixC EqFOutputMatrixC_euclid;
-
-Eigen::MatrixXd EqFStateMatrixA_invdepth(const VIOGroup& X, const VIOManifoldState& xi0, const IMUVelocity& imuVel);
-Eigen::MatrixXd EqFStateMatrixA_invdepth(const VIOGroup& X, const VIOState& xi0, const IMUVelocity& imuVel);
-
-VIOAlgebra liftInnovation(const Eigen::VectorXd& baseInnovation, const VIOManifoldState& xi0);
-VIOAlgebra liftTotalSpaceInnovation(const Eigen::VectorXd& totalInnovation, const VIOState& xi0);
-VIOGroup liftTotalSpaceInnovationDiscrete(const Eigen::VectorXd& totalInnovation, const VIOState& xi0);
-
-VIOAlgebra liftInnovation(
-    const Eigen::VectorXd& baseInnovation, const VIOState& xi0, const VIOGroup& X, const Eigen::MatrixXd& Sigma);
-
-Eigen::VectorXd bundleLift(
-    const Eigen::VectorXd& baseInnovation, const VIOState& xi0, const VIOGroup& X, const Eigen::MatrixXd& Sigma);
+extern const EqFCoordinateSuite EqFCoordinateSuite_euclid;
+extern const EqFCoordinateSuite EqFCoordinateSuite_invdepth;
+extern const EqFCoordinateSuite EqFCoordinateSuite_normal;

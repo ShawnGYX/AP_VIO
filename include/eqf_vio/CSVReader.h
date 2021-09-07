@@ -1,20 +1,3 @@
-// Copyright (C) 2021 Pieter van Goor
-// 
-// This file is part of EqF VIO.
-// 
-// EqF VIO is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-// 
-// EqF VIO is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-// 
-// You should have received a copy of the GNU General Public License
-// along with EqF VIO.  If not, see <http://www.gnu.org/licenses/>.
-
 #pragma once
 
 #include <deque>
@@ -25,6 +8,9 @@
 #include <vector>
 
 #include "eigen3/Eigen/Core"
+#include "liepp/SE3.h"
+#include "liepp/SO3.h"
+#include "liepp/SOT3.h"
 
 class CSVLine {
   protected:
@@ -36,21 +22,21 @@ class CSVLine {
 
     std::deque<std::string> data;
 
-    void readLine(std::istream& lineStream) {
+    void readLine(std::istream& lineStream, const char& delim = ',') {
         data.clear();
         std::string entry;
-        while (std::getline(lineStream, entry, ',')) {
+        while (std::getline(lineStream, entry, delim)) {
             data.emplace_back(entry);
         }
     }
 
   public:
     CSVLine() = default;
-    CSVLine(std::istream& lineStream) { readLine(lineStream); }
+    CSVLine(std::istream& lineStream, const char& delim = ',') { readLine(lineStream, delim); }
     std::string operator[](const size_t& idx) const { return data[idx]; }
     size_t size() const { return data.size(); }
 
-    template <typename T> CSVLine(const T& d) { *this << d; }
+    // template <typename T> CSVLine(const T& d) { *this << d; }
 
     template <typename T, std::enable_if_t<std::is_arithmetic<T>::value, bool> = true> CSVLine& operator>>(T& d) {
         std::stringstream(data.front()) >> d;
@@ -62,6 +48,12 @@ class CSVLine {
         std::stringstream ss;
         ss << d;
         data.emplace_back(ss.str());
+        return *this;
+    }
+
+    CSVLine& operator>>(std::string& s) {
+        s = data.front();
+        data.pop_front();
         return *this;
     }
 
@@ -105,14 +97,29 @@ template <typename Derived> CSVLine& operator<<(CSVLine& line, const Eigen::Quat
     return line << q.w() << q.x() << q.y() << q.z();
 }
 
+inline CSVLine& operator<<(CSVLine& line, const liepp::SO3d& R) { return line << R.asQuaternion(); }
+inline CSVLine& operator>>(CSVLine& line, liepp::SO3d& R) {
+    Eigen::Quaterniond q;
+    line >> q;
+    R.fromQuaternion(q);
+    return line;
+}
+
+inline CSVLine& operator<<(CSVLine& line, const liepp::SE3d& P) { return line << P.x << P.R; }
+inline CSVLine& operator>>(CSVLine& line, liepp::SE3d& P) { return line >> P.x >> P.R; }
+
+inline CSVLine& operator<<(CSVLine& line, const liepp::SOT3d& Q) { return line << Q.a << Q.R; }
+inline CSVLine& operator>>(CSVLine& line, liepp::SOT3d& Q) { return line >> Q.a >> Q.R; }
+
 class CSVReader {
   protected:
     std::istream* csvPtr;
     CSVLine csvLine;
+    char delim;
 
   public:
     CSVReader() { csvPtr = NULL; }
-    CSVReader(std::istream& f) {
+    CSVReader(std::istream& f, const char& delim = ',') : delim(delim) {
         csvPtr = f.good() ? &f : NULL;
         readNextLine();
     }
@@ -120,10 +127,10 @@ class CSVReader {
     CSVReader begin() { return *this; }
     CSVReader end() { return CSVReader(); }
     CSVLine operator*() { return csvLine; }
-    bool operator==(const CSVReader& other) {
+    bool operator==(const CSVReader& other) const {
         return (this->csvPtr == other.csvPtr) || ((this->csvPtr == NULL) && (other.csvPtr == NULL));
     }
-    bool operator!=(const CSVReader& other) { return !(*this == other); }
+    bool operator!=(const CSVReader& other) const { return !(*this == other); }
 
     CSVReader& operator++() {
         if (csvPtr) {
@@ -140,7 +147,7 @@ class CSVReader {
         bool fileNotEmpty = (bool)std::getline(*csvPtr, lineString, '\n');
         if (fileNotEmpty) {
             std::stringstream lineStream(lineString);
-            csvLine.readLine(lineStream);
+            csvLine.readLine(lineStream, delim);
         } else {
             csvLine = CSVLine();
         }

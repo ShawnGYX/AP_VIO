@@ -29,6 +29,54 @@ if (USE_MARCH_NATIVE AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
     endif()
 endif()
 
+option( SUPPORT_CONCEPTS "Build EqVIO using c++20 concepts" OFF)
+add_compile_definitions(SUPPORT_CONCEPTS=$<BOOL:${SUPPORT_CONCEPTS}>)
+
+find_package(GIFT QUIET)
+if (${GIFT_FOUND})
+    message("GIFT is being used as an installed package.")
+    set(GIFT_INCLUDE_DIRS "GIFT::GIFT")
+else()
+    message("GIFT is being used as a git submodule.")
+    execute_process(COMMAND git submodule update --init --recursive --remote
+                    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/external/GIFT
+                    RESULT_VARIABLE GIFT_SUBMOD_RESULT)
+    if (${GIFT_SUBMOD_RESULT})
+        message(FATAL_ERROR "GIFT was not found as a package and could not be included as a submodule.")
+    endif()
+    add_subdirectory(external/GIFT)
+    set(GIFT_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/external/GIFT/GIFT/include")
+endif()
+
+# Add argparse
+find_package(argparse QUIET)
+if (${argparse_FOUND})
+    message("argparse is being used as an installed package.")
+    set(argparse_INCLUDE_DIRS "argparse::argparse")
+else()
+    message("argparse is being used as a git submodule.")
+    execute_process(COMMAND git submodule update --init --recursive --remote
+                    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/external/argparse
+                    RESULT_VARIABLE argparse_SUBMOD_RESULT)
+    if (${argparse_SUBMOD_RESULT})
+        message(FATAL_ERROR "argparse was not found as a package and could not be included as a submodule.")
+    endif()
+    set(argparse_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/external/argparse/include")
+endif()
+
+# Add LiePP
+
+message("LiePP is being used as a git submodule.")
+execute_process(COMMAND git submodule update --init --recursive --remote
+                WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/external/LiePP
+                RESULT_VARIABLE LiePP_SUBMOD_RESULT)
+if (${argparse_SUBMOD_RESULT})
+    message(FATAL_ERROR "LiePP could not be included as a submodule.")
+endif()
+set(LiePP_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/external/LiePP/include")
+
+
+
 add_subdirectory(libs)
 
 set(AP_VIO_HEADER_FILES
@@ -40,6 +88,7 @@ set(AP_VIO_HEADER_FILES
     include/eqf_vio/CSVReader.h
     include/eqf_vio/VisionMeasurement.h
     include/eqf_vio/EqFMatrices.h
+    include/eqf_vio/Geometry.h
     include/eqf_vio/dataStream.h
     )
 set(AP_VIO_SOURCE_FILES
@@ -49,6 +98,7 @@ set(AP_VIO_SOURCE_FILES
     src/VisionMeasurement.cpp
     src/IMUVelocity.cpp
     src/EqFMatrices.cpp
+    src/Geometry.cpp
     src/dataStream.cpp
 )
 
@@ -63,17 +113,25 @@ message(${MODULE_INCLUDE_DIRS})
 target_include_directories(ap_vio_lib
     PUBLIC include
     PUBLIC ${MODULE_INCLUDE_DIRS}
+    PUBLIC ${OPENCV_INCLUDE_DIRS}
+    PUBLIC ${GIFT_INCLUDE_DIRS}
+    PUBLIC ${LiePP_INCLUDE_DIRS}
     PUBLIC ${EIGEN_INCLUDE_DIRS}
 )
 
 target_link_libraries(ap_vio_lib
     ${MODULE_LIBS}
     ${OpenCV_LIBS}
+    GIFT
 )
 
+if (${CMAKE_COMPILER_IS_GNUCC} AND ${CMAKE_CXX_COMPILER_VERSION} LESS 9.0)
+    message("GCC version is less than 9. Manually linking std::filesystem.")
+    target_link_libraries(ap_vio_lib stdc++fs)
+endif()
 
-find_package(OpenCV REQUIRED)
-find_package(GIFT REQUIRED)
+# find_package(OpenCV REQUIRED)
+# find_package(GIFT REQUIRED)
 
 add_executable(vio_ap src/main_ap.cpp)
 
@@ -85,10 +143,12 @@ target_link_libraries(vio_ap
     yaml-cpp
 )
 target_include_directories(vio_ap
-    PRIVATE GIFT::GIFT
-    PRIVATE ${OpenCV_INCLUDE_DIRS}
     PRIVATE include
     PRIVATE ${EIGEN_INCLUDE_DIRS}
+    PRIVATE ${OpenCV_INCLUDE_DIRS}
     PRIVATE ${YAML_CPP_INCLUDE_DIR}
+    PRIVATE ${LiePP_INCLUDE_DIRS}
+    PRIVATE ${GIFT_INCLUDE_DIRS}
+    PRIVATE ${argparse_INCLUDE_DIRS}
 )
 

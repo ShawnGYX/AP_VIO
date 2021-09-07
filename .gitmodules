@@ -1,0 +1,12 @@
+[submodule "external/GIFT"]
+	path = external/GIFT
+	url = git@github.com:pvangoor/GIFT.git
+[submodule "external/CLI11"]
+	path = external/CLI11
+	url = git@github.com:CLIUtils/CLI11.git
+[submodule "external/argparse"]
+	path = external/argparse
+	url = git@github.com:p-ranav/argparse.git
+[submodule "external/LiePP"]
+	path = external/LiePP
+	url = git@github.com:pvangoor/LiePP

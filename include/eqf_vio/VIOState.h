@@ -1,25 +1,10 @@
-// Copyright (C) 2021 Pieter van Goor
-// 
-// This file is part of EqF VIO.
-// 
-// EqF VIO is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-// 
-// EqF VIO is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-// 
-// You should have received a copy of the GNU General Public License
-// along with EqF VIO.  If not, see <http://www.gnu.org/licenses/>.
-
 #pragma once
 
-#include "SE3.h"
+#include "liepp/SE3.h"
 
+#include "CSVReader.h"
 #include "eigen3/Eigen/Eigen"
+#include "eqf_vio/Geometry.h"
 #include "eqf_vio/IMUVelocity.h"
 #include "eqf_vio/VisionMeasurement.h"
 
@@ -28,60 +13,60 @@
 #include <ostream>
 #include <vector>
 
-template <class Manifold> struct TangentBundle {
-    TangentBundle(const Manifold& xi) : basePoint(xi) {}
-    TangentBundle(const Manifold& xi, const Eigen::VectorXd& vec) : basePoint(xi), tVector(vec) {}
-    Eigen::VectorXd tVector;
-    const Manifold& basePoint;
-};
-
-struct Point3d {
+struct Landmark {
     Eigen::Vector3d p;
     int id = -1;
+
+    constexpr static int CompDim = 3;
 };
 
-struct VIOManifoldState {
-    Eigen::Vector3d gravityDir;
+struct VIOSensorState {
+    // The constant size part of the VIO total state
+    liepp::SE3d pose;
     Eigen::Vector3d velocity;
-    std::vector<Point3d> bodyLandmarks;
+    liepp::SE3d cameraOffset;
 
-    SE3 cameraOffset;
+    Eigen::Vector3d gravityDir() const;
+
+    constexpr static int CompDim = 6 + 3 + 6;
 };
 
 struct VIOState {
-    SE3 pose;
-    Eigen::Vector3d velocity;
-    std::vector<Point3d> bodyLandmarks;
+    VIOSensorState sensor;
+    std::vector<Landmark> cameraLandmarks;
 
-    SE3 cameraOffset;
-    operator VIOManifoldState() const;
+    std::vector<int> getIds() const;
 
-    typedef TangentBundle<VIOState> Tangent;
+    const int Dim() const;
+    constexpr static int CompDim = Eigen::Dynamic;
 };
 
-VIOManifoldState projectToManifold(const VIOState& Xi);
+extern const CoordinateChart<VIOSensorState> sensorChart_std;
+extern const CoordinateChart<VIOSensorState> sensorChart_normal;
+extern const CoordinateChart<Landmark> pointChart_euclid;
+extern const CoordinateChart<Landmark> pointChart_invdepth;
+extern const CoordinateChart<Landmark> pointChart_normal;
 
-Eigen::VectorXd euclidCoordinateChart(const VIOManifoldState& xi, const VIOManifoldState& xi0);
-VIOManifoldState euclidCoordinateChartInv(const Eigen::VectorXd& eps, const VIOManifoldState& xi0);
-std::function<Eigen::VectorXd(const VIOManifoldState& xi)> euclidCoordinateChartAt(const VIOManifoldState& xi0);
-std::function<VIOManifoldState(const Eigen::VectorXd& eps)> euclidCoordinateChartAtInv(const VIOManifoldState& xi0);
+const CoordinateChart<VIOState> constructVIOChart(
+    const CoordinateChart<VIOSensorState>& sensorBundleChart, const CoordinateChart<Landmark>& pointChart);
 
-Eigen::VectorXd invdepthCoordinateChart(const VIOManifoldState& xi, const VIOManifoldState& xi0);
-VIOManifoldState invdepthCoordinateChartInv(const Eigen::VectorXd& eps, const VIOManifoldState& xi0);
-std::function<Eigen::VectorXd(const VIOManifoldState& xi)> invdepthCoordinateChartAt(const VIOManifoldState& xi0);
-std::function<VIOManifoldState(const Eigen::VectorXd& eps)> invdepthCoordinateChartAtInv(const VIOManifoldState& xi0);
+extern const CoordinateChart<VIOState> VIOChart_euclid;
+extern const CoordinateChart<VIOState> VIOChart_invdepth;
+extern const CoordinateChart<VIOState> VIOChart_normal;
+
+const Eigen::MatrixXd coordinateDifferential_invdepth_euclid(const VIOState& xi0);
+const Eigen::MatrixXd coordinateDifferential_normal_euclid(const VIOState& xi0);
 
 Eigen::Vector2d e3ProjectSphere(const Eigen::Vector3d& eta);
 Eigen::Vector3d e3ProjectSphereInv(const Eigen::Vector2d& y);
 Eigen::Matrix<double, 2, 3> e3ProjectSphereDiff(const Eigen::Vector3d& eta);
 Eigen::Matrix<double, 3, 2> e3ProjectSphereInvDiff(const Eigen::Vector2d& y);
 
-Eigen::Vector2d stereoSphereChart(const Eigen::Vector3d& eta, const Eigen::Vector3d& pole);
-Eigen::Vector3d stereoSphereChartInv(const Eigen::Vector2d& y, const Eigen::Vector3d& pole);
-Eigen::Matrix<double, 2, 3> stereoSphereChartDiff(const Eigen::Vector3d& eta, const Eigen::Vector3d& pole);
-Eigen::Matrix<double, 3, 2> stereoSphereChartInvDiff(const Eigen::Vector2d& y, const Eigen::Vector3d& pole);
+extern const EmbeddedCoordinateChart<3, 2> sphereChart_stereo;
+extern const EmbeddedCoordinateChart<3, 2> sphereChart_normal;
 
-std::ostream& operator<<(std::ostream& os, const VIOState& state);
+CSVLine& operator<<(CSVLine& line, const VIOSensorState& sensor);
+CSVLine& operator<<(CSVLine& line, const VIOState& state);
 
 [[nodiscard]] VIOState integrateSystemFunction(const VIOState& state, const IMUVelocity& velocity, const double& dt);
-[[nodiscard]] VisionMeasurement measureSystemState(const VIOManifoldState& state);
+[[nodiscard]] VisionMeasurement measureSystemState(const VIOState& state, const GIFT::GICameraPtr& cameraPtr);

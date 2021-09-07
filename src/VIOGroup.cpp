@@ -1,65 +1,33 @@
-// Copyright (C) 2021 Pieter van Goor
-// 
-// This file is part of EqF VIO.
-// 
-// EqF VIO is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-// 
-// EqF VIO is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-// 
-// You should have received a copy of the GNU General Public License
-// along with EqF VIO.  If not, see <http://www.gnu.org/licenses/>.
-
-#include "eqf_vio/VIOGroup.h"
+#include "eqvio/VIOGroup.h"
+#include "liepp/SEn3.h"
 
 using namespace Eigen;
 using namespace std;
+using namespace liepp;
+
+[[nodiscard]] VIOSensorState sensorStateGroupAction(const VIOGroup& X, const VIOSensorState& sensor) {
+    VIOSensorState result;
+    result.pose = sensor.pose * X.A;
+    result.velocity = X.A.R.inverse() * (sensor.velocity - X.w);
+    result.cameraOffset = X.A.inverse() * sensor.cameraOffset * X.B;
+    return result;
+}
 
 VIOState stateGroupAction(const VIOGroup& X, const VIOState& state) {
     VIOState newState;
-    newState.pose = state.pose * X.A;
-    newState.velocity = X.A.R().inverse() * (state.velocity - X.w);
-    newState.cameraOffset = state.cameraOffset;
+    newState.sensor = sensorStateGroupAction(X, state.sensor);
 
     // Check the landmarks and transforms are aligned.
-    assert(X.Q.size() == state.bodyLandmarks.size());
+    assert(X.Q.size() == state.cameraLandmarks.size());
     for (size_t i = 0; i < X.Q.size(); ++i)
-        assert(X.id[i] == state.bodyLandmarks[i].id);
+        assert(X.id[i] == state.cameraLandmarks[i].id);
 
     // Transform the body-fixed landmarks
-    newState.bodyLandmarks.resize(state.bodyLandmarks.size());
-    transform(state.bodyLandmarks.begin(), state.bodyLandmarks.end(), X.Q.begin(), newState.bodyLandmarks.begin(),
-        [](const Point3d& lm, const SOT3& Q) {
-            Point3d result;
-            result.p = Q.inverse() * lm.p;
-            result.id = lm.id;
-            return result;
-        });
-
-    return newState;
-}
-
-VIOManifoldState stateGroupAction(const VIOGroup& X, const VIOManifoldState& state) {
-    VIOManifoldState newState;
-    newState.gravityDir = X.A.R().inverse() * state.gravityDir;
-    newState.velocity = X.A.R().inverse() * (state.velocity - X.w);
-    newState.cameraOffset = state.cameraOffset;
-
-    // Check the landmarks and transforms are aligned.
-    assert(X.Q.size() == state.bodyLandmarks.size());
-    for (size_t i = 0; i < X.Q.size(); ++i)
-        assert(X.id[i] == state.bodyLandmarks[i].id);
-
-    // Transform the body-fixed landmarks
-    newState.bodyLandmarks.resize(state.bodyLandmarks.size());
-    transform(state.bodyLandmarks.begin(), state.bodyLandmarks.end(), X.Q.begin(), newState.bodyLandmarks.begin(),
-        [](const Point3d& lm, const SOT3& Q) {
-            Point3d result;
+    newState.cameraLandmarks.resize(state.cameraLandmarks.size());
+    transform(
+        state.cameraLandmarks.begin(), state.cameraLandmarks.end(), X.Q.begin(), newState.cameraLandmarks.begin(),
+        [](const Landmark& lm, const SOT3d& Q) {
+            Landmark result;
             result.p = Q.inverse() * lm.p;
             result.id = lm.id;
             return result;
@@ -69,23 +37,16 @@ VIOManifoldState stateGroupAction(const VIOGroup& X, const VIOManifoldState& sta
 }
 
 VisionMeasurement outputGroupAction(const VIOGroup& X, const VisionMeasurement& measurement) {
-    // Check the measurements and transforms are aligned.
-    assert(X.Q.size() == measurement.numberOfBearings);
-    for (size_t i = 0; i < X.Q.size(); ++i)
-        assert(X.id[i] == measurement.bearings[i].id);
-
     // Transform the measurements
     VisionMeasurement newMeasurements;
-    newMeasurements.bearings.resize(measurement.bearings.size());
-    newMeasurements.numberOfBearings = measurement.bearings.size();
-    transform(measurement.bearings.begin(), measurement.bearings.end(), X.Q.begin(), newMeasurements.bearings.begin(),
-        [](const Point3d& y, const SOT3& Q) {
-            Point3d result;
-            result.p = Q.R().inverse() * y.p;
-            result.id = y.id;
-            return result;
-        });
-
+    for (size_t i = 0; i < X.Q.size(); ++i) {
+        const auto it = measurement.camCoordinates.find(X.id[i]);
+        if (it != measurement.camCoordinates.end()) {
+            const Vector3d bearing = measurement.cameraPtr->undistortPoint(it->second);
+            newMeasurements.camCoordinates[X.id[i]] = measurement.cameraPtr->projectPoint(X.Q[i].R.inverse() * bearing);
+        }
+    }
+    newMeasurements.cameraPtr = measurement.cameraPtr;
     return newMeasurements;
 }
 
@@ -93,7 +54,8 @@ VIOGroup VIOGroup::operator*(const VIOGroup& other) const {
     VIOGroup result;
 
     result.A = this->A * other.A;
-    result.w = this->w + this->A.R() * other.w;
+    result.B = this->B * other.B;
+    result.w = this->w + this->A.R * other.w;
 
     // Check the transforms are aligned.
     assert(this->Q.size() == other.Q.size());
@@ -102,8 +64,9 @@ VIOGroup VIOGroup::operator*(const VIOGroup& other) const {
         assert(this->id[i] == other.id[i]);
 
     result.Q.resize(this->Q.size());
-    transform(this->Q.begin(), this->Q.end(), other.Q.begin(), result.Q.begin(),
-        [](const SOT3& Qi1, const SOT3& Qi2) { return Qi1 * Qi2; });
+    transform(
+        this->Q.begin(), this->Q.end(), other.Q.begin(), result.Q.begin(),
+        [](const SOT3d& Qi1, const SOT3d& Qi2) { return Qi1 * Qi2; });
     result.id = this->id;
 
     return result;
@@ -111,11 +74,12 @@ VIOGroup VIOGroup::operator*(const VIOGroup& other) const {
 
 VIOGroup VIOGroup::Identity(const vector<int>& id) {
     VIOGroup result;
-    result.A = SE3::Identity();
+    result.A = SE3d::Identity();
+    result.B = SE3d::Identity();
     result.w = Vector3d::Zero();
     result.id = id;
     result.Q.resize(id.size());
-    for (SOT3& Qi : result.Q) {
+    for (SOT3d& Qi : result.Q) {
         Qi.setIdentity();
     }
     return result;
@@ -124,19 +88,39 @@ VIOGroup VIOGroup::Identity(const vector<int>& id) {
 VIOGroup VIOGroup::inverse() const {
     VIOGroup result;
     result.A = A.inverse();
-    result.w = -(A.R().inverse() * w);
+    result.B = B.inverse();
+    result.w = -(A.R.inverse() * w);
 
     result.Q = Q;
-    for_each(result.Q.begin(), result.Q.end(), [](SOT3& Qi) { Qi = Qi.inverse(); });
+    for_each(result.Q.begin(), result.Q.end(), [](SOT3d& Qi) { Qi = Qi.inverse(); });
     result.id = this->id;
 
     return result;
 }
 
+bool VIOGroup::hasNaN() const {
+    bool nanFound = false;
+    nanFound |= A.asMatrix().hasNaN();
+    nanFound |= B.asMatrix().hasNaN();
+    nanFound |= w.hasNaN();
+    nanFound |= std::any_of(Q.begin(), Q.end(), [](const SOT3d& Qi) { return Qi.asMatrix().hasNaN(); });
+    return nanFound;
+}
+
+CSVLine& operator<<(CSVLine& line, const VIOGroup& X) {
+    line << X.A << X.w << X.B;
+    line << X.id.size();
+    for (int i = 0; i < X.id.size(); ++i) {
+        line << X.id[i] << X.Q[i];
+    }
+    return line;
+}
+
 VIOAlgebra VIOAlgebra::operator*(const double& c) const {
     VIOAlgebra result;
-    result.U = this->U * c;
-    result.u = this->u * c;
+    result.U_A = this->U_A * c;
+    result.U_B = this->U_B * c;
+    result.u_w = this->u_w * c;
     result.W.resize(this->W.size());
     transform(W.begin(), W.end(), result.W.begin(), [&c](const Vector4d& Wi) { return c * Wi; });
     result.id = this->id;
@@ -146,8 +130,9 @@ VIOAlgebra VIOAlgebra::operator*(const double& c) const {
 
 VIOAlgebra VIOAlgebra::operator-() const {
     VIOAlgebra result;
-    result.U = -this->U;
-    result.u = -this->u;
+    result.U_A = -this->U_A;
+    result.U_B = -this->U_B;
+    result.u_w = -this->u_w;
     result.W.resize(this->W.size());
     transform(W.begin(), W.end(), result.W.begin(), [](const Vector4d& Wi) { return -Wi; });
     result.id = this->id;
@@ -157,8 +142,9 @@ VIOAlgebra VIOAlgebra::operator-() const {
 
 VIOAlgebra VIOAlgebra::operator+(const VIOAlgebra& other) const {
     VIOAlgebra result;
-    result.U = this->U + other.U;
-    result.u = this->u + other.u;
+    result.U_A = this->U_A + other.U_A;
+    result.U_B = this->U_B + other.U_B;
+    result.u_w = this->u_w + other.u_w;
 
     assert(this->id.size() == other.id.size());
     for (size_t i = 0; i < this->id.size(); ++i) {
@@ -166,7 +152,8 @@ VIOAlgebra VIOAlgebra::operator+(const VIOAlgebra& other) const {
     }
 
     result.W.resize(this->W.size());
-    transform(this->W.begin(), this->W.end(), other.W.begin(), result.W.begin(),
+    transform(
+        this->W.begin(), this->W.end(), other.W.begin(), result.W.begin(),
         [](const Vector4d& Wi1, const Vector4d& Wi2) { return Wi1 + Wi2; });
     result.id = this->id;
 
@@ -175,67 +162,72 @@ VIOAlgebra VIOAlgebra::operator+(const VIOAlgebra& other) const {
 
 VIOAlgebra VIOAlgebra::operator-(const VIOAlgebra& other) const { return *this + (-other); }
 
-[[nodiscard]] VIOAlgebra liftVelocity(const VIOManifoldState& state, const IMUVelocity& velocity) {
+[[nodiscard]] VIOAlgebra liftVelocity(const VIOState& state, const IMUVelocity& velocity) {
     VIOAlgebra lift;
 
+    const VIOSensorState& sensor = state.sensor;
     // Set the SE(3) velocity
-    lift.U.setZero();
-    lift.U.block<3, 1>(0, 0) = velocity.omega;
-    lift.U.block<3, 1>(3, 0) = state.velocity;
+    lift.U_A.setZero();
+    lift.U_A.block<3, 1>(0, 0) = velocity.omega;
+    lift.U_A.block<3, 1>(3, 0) = sensor.velocity;
+
+    lift.U_B = sensor.cameraOffset.inverse().Adjoint() * lift.U_A;
 
     // Set the R3 velocity
-    lift.u = -velocity.accel + state.gravityDir * GRAVITY_CONSTANT;
+    lift.u_w = -velocity.accel + sensor.gravityDir() * GRAVITY_CONSTANT;
 
     // Set the landmark transform velocities
-    const se3vector U_C = state.cameraOffset.inverse().Adjoint() * lift.U;
-    lift.W.resize(state.bodyLandmarks.size());
-    transform(state.bodyLandmarks.begin(), state.bodyLandmarks.end(), lift.W.begin(), [&U_C](const Point3d& blm) {
+    const se3d U_C = sensor.cameraOffset.inverse().Adjoint() * lift.U_A;
+    lift.W.resize(state.cameraLandmarks.size());
+    transform(state.cameraLandmarks.begin(), state.cameraLandmarks.end(), lift.W.begin(), [&U_C](const Landmark& blm) {
         Vector4d result;
         const Vector3d& omega_C = U_C.block<3, 1>(0, 0);
         const Vector3d& v_C = U_C.block<3, 1>(3, 0);
-        result.block<3, 1>(0, 0) = omega_C + SO3::skew(blm.p) * v_C / blm.p.squaredNorm();
+        result.block<3, 1>(0, 0) = omega_C + SO3d::skew(blm.p) * v_C / blm.p.squaredNorm();
         result(3) = blm.p.dot(v_C) / blm.p.squaredNorm();
         return result;
     });
 
     // Set the lift ids
-    lift.id.resize(state.bodyLandmarks.size());
-    transform(state.bodyLandmarks.begin(), state.bodyLandmarks.end(), lift.id.begin(),
-        [](const Point3d& blm) { return blm.id; });
+    lift.id.resize(state.cameraLandmarks.size());
+    transform(state.cameraLandmarks.begin(), state.cameraLandmarks.end(), lift.id.begin(), [](const Landmark& blm) {
+        return blm.id;
+    });
 
     return lift;
 }
 
-[[nodiscard]] VIOGroup liftVelocityDiscrete(
-    const VIOManifoldState& state, const IMUVelocity& velocity, const double& dt) {
+[[nodiscard]] VIOGroup liftVelocityDiscrete(const VIOState& state, const IMUVelocity& velocity, const double& dt) {
     // Lift the velocity discretely
     VIOGroup lift;
 
+    const VIOSensorState& sensor = state.sensor;
     // Set the SE(3) velocity
     Matrix<double, 6, 1> AVel;
-    AVel << velocity.omega, state.velocity;
-    lift.A = SE3::SE3Exp(dt * AVel);
+    AVel << velocity.omega, sensor.velocity + 0.5 * dt * (velocity.accel - sensor.gravityDir() * GRAVITY_CONSTANT);
+    lift.A = SE3d::exp(dt * AVel);
+
+    lift.B = sensor.cameraOffset.inverse() * lift.A * sensor.cameraOffset;
 
     // Set the R3 velocity
-    lift.w =
-        state.velocity - lift.A.R() * (state.velocity + dt * (-SO3::skew(velocity.omega) * state.velocity +
-                                                                 velocity.accel - state.gravityDir * GRAVITY_CONSTANT));
+    Vector3d bodyVelocityDiff = velocity.accel - sensor.gravityDir() * GRAVITY_CONSTANT;
+    lift.w = sensor.velocity - (sensor.velocity + dt * bodyVelocityDiff);
 
     // Set the landmark transform velocities
-    const int N = state.bodyLandmarks.size();
-    const se3vector U_C = state.cameraOffset.inverse().Adjoint() * AVel;
-    const SE3 cameraPoseChangeInv = SE3::SE3Exp(-dt * U_C);
+    const int N = state.cameraLandmarks.size();
+    const se3d U_C = sensor.cameraOffset.inverse().Adjoint() * AVel;
+    const SE3d cameraPoseChangeInv = SE3d::exp(-dt * U_C);
     lift.Q.resize(N);
     lift.id.resize(N);
     for (int i = 0; i < N; ++i) {
-        const Point3d& blm0 = state.bodyLandmarks[i];
-        Point3d blm1;
+        const Landmark& blm0 = state.cameraLandmarks[i];
+        Landmark blm1;
         blm1.id = blm0.id;
         blm1.p = cameraPoseChangeInv * blm0.p;
 
         // Find the transform to take blm1 to blm0
-        lift.Q[i].R() = SO3::SO3FromVectors(blm1.p.normalized(), blm0.p.normalized());
-        lift.Q[i].a() = blm0.p.norm() / blm1.p.norm();
+        lift.Q[i].R = SO3d::SO3FromVectors(blm1.p.normalized(), blm0.p.normalized());
+        lift.Q[i].a = blm0.p.norm() / blm1.p.norm();
         lift.id[i] = blm1.id;
     }
 
@@ -243,13 +235,19 @@ VIOAlgebra VIOAlgebra::operator-(const VIOAlgebra& other) const { return *this +
 }
 
 [[nodiscard]] VIOGroup VIOExp(const VIOAlgebra& lambda) {
+    SE23d::VectorDS extPoseAwVel;
+    extPoseAwVel << lambda.U_A, lambda.u_w;
+    SE23d extPoseAw = SE23d::exp(extPoseAwVel);
+
     VIOGroup result;
-    result.A = SE3::SE3Exp(lambda.U);
-    result.w = lambda.u;
+    result.A = SE3d(extPoseAw.R, extPoseAw.x[0]);
+    result.w = extPoseAw.x[1];
+
+    result.B = SE3d::exp(lambda.U_B);
 
     result.id = lambda.id;
     result.Q.resize(lambda.W.size());
-    transform(lambda.W.begin(), lambda.W.end(), result.Q.begin(), [](const Vector4d& Wi) { return SOT3::SOT3Exp(Wi); });
+    transform(lambda.W.begin(), lambda.W.end(), result.Q.begin(), [](const Vector4d& Wi) { return SOT3d::exp(Wi); });
 
     return result;
 }

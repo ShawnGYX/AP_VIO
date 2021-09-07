@@ -1,25 +1,10 @@
-// Copyright (C) 2021 Pieter van Goor
-// 
-// This file is part of EqF VIO.
-// 
-// EqF VIO is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-// 
-// EqF VIO is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-// 
-// You should have received a copy of the GNU General Public License
-// along with EqF VIO.  If not, see <http://www.gnu.org/licenses/>.
-
-#include "eqf_vio/VIOState.h"
+#include "eqvio/VIOState.h"
+#include "liepp/SEn3.h"
 #include <cmath>
 
 using namespace std;
 using namespace Eigen;
+using namespace liepp;
 
 Matrix3d skew(const Vector3d& vec);
 
@@ -27,174 +12,205 @@ VIOState integrateSystemFunction(const VIOState& state, const IMUVelocity& veloc
     VIOState newState;
 
     // Integrate the pose
-    se3vector poseVel = se3vector::Zero();
-    poseVel.block<3, 1>(0, 0) = velocity.omega;
-    poseVel.block<3, 1>(3, 0) = state.velocity;
-    newState.pose = state.pose * SE3::SE3Exp(dt * poseVel);
+    const VIOSensorState& sensor = state.sensor;
+    VIOSensorState& newSensor = newState.sensor;
+    SE3d::VectorDS poseVel;
+    poseVel << velocity.omega,
+        sensor.velocity + 0.5 * dt * (velocity.accel + sensor.pose.R.inverse() * Vector3d(0, 0, -GRAVITY_CONSTANT));
+
+    newSensor.pose = sensor.pose * SE3d::exp(dt * poseVel);
 
     // Integrate the velocity
-    newState.velocity = state.velocity + dt * (-SO3::skew(velocity.omega) * state.velocity + velocity.accel -
-                                                  (state.pose.R().inverse() * Vector3d(0, 0, GRAVITY_CONSTANT)));
+    Vector3d inertialVelocityDiff = sensor.pose.R.asMatrix() * velocity.accel + Vector3d(0, 0, -GRAVITY_CONSTANT);
+    newSensor.velocity = newSensor.pose.R.inverse() * (sensor.pose.R * sensor.velocity + dt * inertialVelocityDiff);
 
     // Landmarks are transformed in the body fixed frame
-    const Matrix4d cameraPoseVel =
-        state.cameraOffset.inverse().asMatrix() * SE3::wedge(poseVel) * state.cameraOffset.asMatrix();
-    const SE3 cameraPoseChangeInv = SE3::SE3Exp(SE3::vee(-dt * cameraPoseVel));
-    newState.bodyLandmarks.resize(state.bodyLandmarks.size());
-    transform(state.bodyLandmarks.begin(), state.bodyLandmarks.end(), newState.bodyLandmarks.begin(),
-        [&cameraPoseChangeInv](const Point3d& blm) {
-            Point3d result;
+    const SE3d::VectorDS cameraPoseVel = sensor.cameraOffset.inverse().Adjoint() * poseVel;
+    const SE3d cameraPoseChangeInv = SE3d::exp(-dt * cameraPoseVel);
+    newState.cameraLandmarks.resize(state.cameraLandmarks.size());
+    transform(
+        state.cameraLandmarks.begin(), state.cameraLandmarks.end(), newState.cameraLandmarks.begin(),
+        [&cameraPoseChangeInv](const Landmark& blm) {
+            Landmark result;
             result.p = cameraPoseChangeInv * blm.p;
             result.id = blm.id;
             return result;
         });
 
     // Camera offset is constant
-    newState.cameraOffset = state.cameraOffset;
+    newSensor.cameraOffset = sensor.cameraOffset;
 
     return newState;
 }
 
-VisionMeasurement measureSystemState(const VIOManifoldState& state) {
+VisionMeasurement measureSystemState(const VIOState& state, const GIFT::GICameraPtr& cameraPtr) {
     VisionMeasurement result;
-    result.numberOfBearings = state.bodyLandmarks.size();
-    result.bearings.resize(state.bodyLandmarks.size());
     transform(
-        state.bodyLandmarks.begin(), state.bodyLandmarks.end(), result.bearings.begin(), [](const Point3d& point) {
-            Point3d result;
-            result.p = point.p.normalized();
-            result.id = point.id;
-            return result;
-        });
+        state.cameraLandmarks.begin(), state.cameraLandmarks.end(),
+        std::inserter(result.camCoordinates, result.camCoordinates.begin()),
+        [&cameraPtr](const Landmark& lm) { return std::make_pair(lm.id, cameraPtr->projectPoint(lm.p)); });
+    result.cameraPtr = cameraPtr;
     return result;
 }
 
-std::ostream& operator<<(std::ostream& os, const VIOState& state) {
-    const Vector3d position = state.pose.x();
-    const Quaterniond attitude = state.pose.R().asQuaternion();
-    os << position.x() << ", " << position.y() << ", " << position.z() << ", ";
-    os << attitude.w() << ", " << attitude.x() << ", " << attitude.y() << ", " << attitude.z() << ", ";
-    os << state.velocity.x() << ", " << state.velocity.y() << ", " << state.velocity.z() << ", ";
-
-    os << state.bodyLandmarks.size();
-    for (const Point3d& blm : state.bodyLandmarks) {
-        os << ", " << blm.id << ", " << blm.p.x() << ", " << blm.p.y() << ", " << blm.p.z();
+CSVLine& operator<<(CSVLine& line, const VIOState& state) {
+    line << state.sensor;
+    line << state.cameraLandmarks.size();
+    for (const Landmark& blm : state.cameraLandmarks) {
+        line << blm.id << blm.p;
     }
-    return os;
+    return line;
 }
 
-VIOState::operator VIOManifoldState() const { return projectToManifold(*this); }
-
-VIOManifoldState projectToManifold(const VIOState& Xi) {
-    VIOManifoldState xi;
-    xi.gravityDir = Xi.pose.R().inverse() * Vector3d(0, 0, 1);
-    xi.velocity = Xi.velocity;
-    xi.bodyLandmarks = Xi.bodyLandmarks;
-    xi.cameraOffset = Xi.cameraOffset;
-    return xi;
+CSVLine& operator<<(CSVLine& line, const VIOSensorState& sensor) {
+    line << sensor.pose << sensor.velocity << sensor.cameraOffset;
+    return line;
 }
 
-VectorXd euclidCoordinateChart(const VIOManifoldState& xi, const VIOManifoldState& xi0) {
-    assert(xi0.bodyLandmarks.size() == xi.bodyLandmarks.size());
-    const int N = xi0.bodyLandmarks.size();
-    VectorXd eps(5 + 3 * N);
+Eigen::Vector3d VIOSensorState::gravityDir() const { return pose.R.inverse() * Vector3d::UnitZ(); }
 
-    // eps.block<2, 1>(0, 0) = e3ProjectSphere(xi.gravityDir) - e3ProjectSphere(xi0.gravityDir);
-    eps.block<2, 1>(0, 0) = stereoSphereChart(xi.gravityDir, xi0.gravityDir);
-    eps.block<3, 1>(2, 0) = xi.velocity - xi0.velocity;
-    for (int i = 0; i < N; ++i) {
-        assert(xi.bodyLandmarks[i].id == xi0.bodyLandmarks[i].id);
-        eps.block<3, 1>(5 + 3 * i, 0) = xi.bodyLandmarks[i].p - xi0.bodyLandmarks[i].p;
-    }
-    return eps;
+vector<int> VIOState::getIds() const {
+    vector<int> ids(cameraLandmarks.size());
+    transform(cameraLandmarks.begin(), cameraLandmarks.end(), ids.begin(), [](const Landmark& pt) { return pt.id; });
+    return ids;
 }
 
-VIOManifoldState euclidCoordinateChartInv(const VectorXd& eps, const VIOManifoldState& xi0) {
-    VIOManifoldState xi;
-    // xi.gravityDir = e3ProjectSphereInv(e3ProjectSphere(xi0.gravityDir) + eps.block<2, 1>(0, 0));
-    xi.gravityDir = stereoSphereChartInv(eps.block<2, 1>(0, 0), xi0.gravityDir);
+const int VIOState::Dim() const { return VIOSensorState::CompDim + Landmark::CompDim * cameraLandmarks.size(); }
 
-    xi.cameraOffset = xi0.cameraOffset;
-    xi.velocity = xi0.velocity + eps.block<3, 1>(2, 0);
+const CoordinateChart<VIOSensorState> sensorChart_std{
+    [](const VIOSensorState& Xi, const VIOSensorState& Xi0) {
+        Vector<double, VIOSensorState::CompDim> eps;
+        eps.segment<6>(0) = SE3d::log(Xi0.pose.inverse() * Xi.pose);
+        eps.segment<3>(6) = Xi.velocity - Xi0.velocity;
+        eps.segment<6>(9) = SE3d::log(Xi0.cameraOffset.inverse() * Xi.cameraOffset);
+        assert(!eps.hasNaN());
+        return eps;
+    },
+    [](const Vector<double, VIOSensorState::CompDim>& eps, const VIOSensorState& Xi0) {
+        VIOSensorState Xi;
+        Xi.pose = Xi0.pose * SE3d::exp(eps.segment<6>(0));
+        Xi.velocity = Xi0.velocity + eps.segment<3>(6);
+        Xi.cameraOffset = Xi0.cameraOffset * SE3d::exp(eps.segment<6>(9));
+        return Xi;
+    }};
 
-    assert(5 + 3 * xi0.bodyLandmarks.size() == eps.size());
-    const int N = xi0.bodyLandmarks.size();
-    xi.bodyLandmarks.resize(N);
-    for (int i = 0; i < N; ++i) {
-        xi.bodyLandmarks[i].p = xi0.bodyLandmarks[i].p + eps.block<3, 1>(5 + 3 * i, 0);
-        xi.bodyLandmarks[i].id = xi0.bodyLandmarks[i].id;
-    }
-    return xi;
-}
+const CoordinateChart<VIOSensorState> sensorChart_normal{
+    [](const VIOSensorState& Xi, const VIOSensorState& Xi0) {
+        SE3d A = Xi0.pose.inverse() * Xi.pose;
+        Vector3d w = Xi0.velocity - A.R * Xi.velocity;
+        SE3d B = Xi0.cameraOffset.inverse() * A * Xi.cameraOffset;
 
-Eigen::VectorXd invdepthCoordinateChart(const VIOManifoldState& xi, const VIOManifoldState& xi0) {
-    assert(xi0.bodyLandmarks.size() == xi.bodyLandmarks.size());
-    const int N = xi0.bodyLandmarks.size();
-    VectorXd eps(5 + 3 * N);
+        Vector<double, VIOSensorState::CompDim> eps;
+        eps.segment<9>(0) = SE23d::log(SE23d(A.R, {A.x, w}));
+        eps.segment<6>(9) = SE3d::log(B);
 
-    eps.block<2, 1>(0, 0) = stereoSphereChart(xi.gravityDir, xi0.gravityDir);
-    eps.block<3, 1>(2, 0) = xi.velocity - xi0.velocity;
-    for (int i = 0; i < N; ++i) {
-        assert(xi.bodyLandmarks[i].id == xi0.bodyLandmarks[i].id);
-        // Compute the inverse depth and bearing
-        const double rho_i = 1.0 / xi.bodyLandmarks[i].p.norm();
-        const double rho0_i = 1.0 / xi0.bodyLandmarks[i].p.norm();
-        const Vector3d y_i = xi.bodyLandmarks[i].p * rho_i;
-        const Vector3d y0_i = xi0.bodyLandmarks[i].p * rho0_i;
+        return eps;
+    },
+    [](const Vector<double, VIOSensorState::CompDim>& eps, const VIOSensorState& Xi0) {
+        SE23d X = SE23d::exp(eps.segment<9>(0));
+        SE3d B = SE3d::exp(eps.segment<6>(9));
+        SE3d A = SE3d(X.R, X.x[0]);
+        Vector3d w = X.x[1];
+
+        VIOSensorState Xi;
+        Xi.pose = Xi0.pose * A;
+        Xi.velocity = A.R.inverse() * (Xi0.velocity - w);
+        Xi.cameraOffset = A.inverse() * Xi0.cameraOffset * B;
+        return Xi;
+    }};
+
+const CoordinateChart<Landmark> pointChart_euclid{
+    [](const Landmark& q, const Landmark& q0) { return q.p - q0.p; },
+    [](const Vector3d& eps, const Landmark& q0) {
+        return Landmark{q0.p + eps, q0.id};
+    }};
+
+const CoordinateChart<Landmark> pointChart_invdepth{
+    [](const Landmark& q, const Landmark& q0) {
+        assert(q0.id == q.id);
+        const double rho_i = 1.0 / q.p.norm();
+        const double rho0_i = 1.0 / q0.p.norm();
+        const Vector3d y_i = q.p * rho_i;
+        const Vector3d y0_i = q0.p * rho0_i;
 
         // Store the bearing and then the inverse depth
-        eps.block<3, 1>(5 + 3 * i, 0) << stereoSphereChart(y_i, y0_i), rho0_i * log(rho_i / rho0_i);
-    }
-    return eps;
-}
-
-std::function<Eigen::VectorXd(const VIOManifoldState& xi)> euclidCoordinateChartAt(const VIOManifoldState& xi0) {
-    std::function<Eigen::VectorXd(const VIOManifoldState& xi)> euclidCoordinateChart_xi0 =
-        [xi0](const VIOManifoldState& xi) { return euclidCoordinateChart(xi, xi0); };
-    return euclidCoordinateChart_xi0;
-}
-
-std::function<VIOManifoldState(const Eigen::VectorXd& eps)> euclidCoordinateChartAtInv(const VIOManifoldState& xi0) {
-    std::function<VIOManifoldState(const Eigen::VectorXd& eps)> euclidCoordinateChartInv_xi0 =
-        [xi0](const Eigen::VectorXd& eps) { return euclidCoordinateChartInv(eps, xi0); };
-    return euclidCoordinateChartInv_xi0;
-}
-
-VIOManifoldState invdepthCoordinateChartInv(const Eigen::VectorXd& eps, const VIOManifoldState& xi0) {
-    VIOManifoldState xi;
-    // xi.gravityDir = e3ProjectSphereInv(e3ProjectSphere(xi0.gravityDir) + eps.block<2, 1>(0, 0));
-    xi.gravityDir = stereoSphereChartInv(eps.block<2, 1>(0, 0), xi0.gravityDir);
-
-    xi.cameraOffset = xi0.cameraOffset;
-    xi.velocity = xi0.velocity + eps.block<3, 1>(2, 0);
-
-    assert(5 + 3 * xi0.bodyLandmarks.size() == eps.size());
-    const int N = xi0.bodyLandmarks.size();
-    xi.bodyLandmarks.resize(N);
-    for (int i = 0; i < N; ++i) {
-        const double rho0_i = 1.0 / xi0.bodyLandmarks[i].p.norm();
-        const Vector3d y0_i = xi0.bodyLandmarks[i].p * rho0_i;
+        Vector3d eps;
+        eps.segment<2>(0) = sphereChart_stereo(y_i, y0_i);
+        eps(2) = rho_i - rho0_i;
+        return eps;
+    },
+    [](const Vector3d& eps, const Landmark& q0) {
+        const double rho0_i = 1.0 / q0.p.norm();
+        const Vector3d y0_i = q0.p * rho0_i;
 
         // Retrieve bearing and inverse depth
-        const Vector3d y_i = stereoSphereChartInv(eps.block<2, 1>(5 + 3 * i, 0), y0_i);
-        const double rho_i = exp(eps(5 + 3 * i + 2, 0) / rho0_i) * rho0_i;
+        const Vector3d y_i = sphereChart_stereo.inv(eps.segment<2>(0), y0_i);
+        double rho_i = eps(2) + rho0_i;
+        if (rho_i <= 0.0) {
+            rho_i = 1e-6;
+            // throw(domain_error("The inverse depth cannot be negative."));
+        }
 
-        xi.bodyLandmarks[i].p = y_i / rho_i;
-        xi.bodyLandmarks[i].id = xi0.bodyLandmarks[i].id;
-    }
-    return xi;
+        return Landmark{y_i / rho_i, q0.id};
+    }};
+
+const CoordinateChart<Landmark> pointChart_normal{
+    [](const Landmark& q, const Landmark& q0) {
+        assert(q0.id == q.id);
+        const double rho_i = 1.0 / q.p.norm();
+        const double rho0_i = 1.0 / q0.p.norm();
+        const Vector3d y_i = q.p * rho_i;
+        const Vector3d y0_i = q0.p * rho0_i;
+
+        // Store the bearing and then the inverse depth
+        Vector3d eps;
+        eps.segment<2>(0) = sphereChart_normal(y_i, y0_i);
+        eps(2) = log(rho_i / rho0_i);
+        return eps;
+    },
+    [](const Vector3d& eps, const Landmark& q0) {
+        const double rho0_i = 1.0 / q0.p.norm();
+        const Vector3d y0_i = q0.p * rho0_i;
+
+        // Retrieve bearing and inverse depth
+        const Vector3d y_i = sphereChart_normal.inv(eps.segment<2>(0), y0_i);
+        double rho_i = rho0_i * exp(eps(2));
+
+        return Landmark{y_i / rho_i, q0.id};
+    }};
+
+const CoordinateChart<VIOState>
+constructVIOChart(const CoordinateChart<VIOSensorState>& sensorChart, const CoordinateChart<Landmark>& pointChart) {
+
+    const CoordinateChart<VIOState> chart{
+        [&sensorChart, &pointChart](const VIOState& Xi, const VIOState& Xi0) {
+            const int& N = Xi.cameraLandmarks.size();
+            assert(N == Xi0.cameraLandmarks.size());
+            VectorXd eps = VectorXd(VIOSensorState::CompDim + 3 * N);
+            eps.segment<VIOSensorState::CompDim>(0) = sensorChart(Xi.sensor, Xi0.sensor);
+            for (int i = 0; i < N; ++i) {
+                eps.segment<3>(VIOSensorState::CompDim + 3 * i) =
+                    pointChart(Xi.cameraLandmarks[i], Xi0.cameraLandmarks[i]);
+            }
+            return eps;
+        },
+        [&sensorChart, &pointChart](const VectorXd& eps, const VIOState& Xi0) {
+            const int& N = Xi0.cameraLandmarks.size();
+            VIOState Xi;
+            Xi.sensor = sensorChart.inv(eps.segment<VIOSensorState::CompDim>(0), Xi0.sensor);
+            Xi.cameraLandmarks.resize(N);
+            for (int i = 0; i < N; ++i) {
+                Xi.cameraLandmarks[i] =
+                    pointChart.inv(eps.segment<3>(VIOSensorState::CompDim + 3 * i), Xi0.cameraLandmarks[i]);
+            }
+            return Xi;
+        }};
+    return chart;
 }
 
-std::function<Eigen::VectorXd(const VIOManifoldState& xi)> invdepthCoordinateChartAt(const VIOManifoldState& xi0) {
-    std::function<Eigen::VectorXd(const VIOManifoldState& xi)> invdepthCoordinateChart_xi0 =
-        [xi0](const VIOManifoldState& xi) { return invdepthCoordinateChart(xi, xi0); };
-    return invdepthCoordinateChart_xi0;
-}
-std::function<VIOManifoldState(const Eigen::VectorXd& eps)> invdepthCoordinateChartAtInv(const VIOManifoldState& xi0) {
-    std::function<VIOManifoldState(const Eigen::VectorXd& eps)> invdepthCoordinateChartInv_xi0 =
-        [xi0](const Eigen::VectorXd& eps) { return invdepthCoordinateChartInv(eps, xi0); };
-    return invdepthCoordinateChartInv_xi0;
-}
+const CoordinateChart<VIOState> VIOChart_invdepth = constructVIOChart(sensorChart_std, pointChart_invdepth);
+const CoordinateChart<VIOState> VIOChart_euclid = constructVIOChart(sensorChart_std, pointChart_euclid);
+const CoordinateChart<VIOState> VIOChart_normal = constructVIOChart(sensorChart_normal, pointChart_normal);
 
 Eigen::Vector2d e3ProjectSphere(const Eigen::Vector3d& eta) {
     static const Matrix<double, 2, 3> I23 = Matrix<double, 2, 3>::Identity();
@@ -227,25 +243,128 @@ Eigen::Matrix<double, 3, 2> e3ProjectSphereInvDiff(const Eigen::Vector2d& y) {
     return Diff;
 }
 
-Eigen::Vector2d stereoSphereChart(const Eigen::Vector3d& eta, const Eigen::Vector3d& pole) {
-    const SO3 sphereRot = SO3::SO3FromVectors(-pole, Eigen::Vector3d::Unit(2));
+Eigen::Vector2d sphereChart_stereo_impl(const Eigen::Vector3d& eta, const Eigen::Vector3d& pole);
+Eigen::Vector3d sphereChart_stereo_inv_impl(const Eigen::Vector2d& y, const Eigen::Vector3d& pole);
+Eigen::Matrix<double, 2, 3> sphereChart_stereo_diff0_impl(const Eigen::Vector3d& pole);
+Eigen::Matrix<double, 3, 2> sphereChart_stereo_inv_diff0_impl(const Eigen::Vector3d& pole);
+
+const EmbeddedCoordinateChart<3, 2> sphereChart_stereo{
+    sphereChart_stereo_impl, sphereChart_stereo_inv_impl, sphereChart_stereo_diff0_impl,
+    sphereChart_stereo_inv_diff0_impl};
+
+Eigen::Vector2d sphereChart_stereo_impl(const Eigen::Vector3d& eta, const Eigen::Vector3d& pole) {
+    const SO3d sphereRot = SO3d::SO3FromVectors(-pole, Eigen::Vector3d::Unit(2));
     const Vector3d etaRotated = sphereRot * eta;
     return e3ProjectSphere(etaRotated);
 }
 
-Eigen::Vector3d stereoSphereChartInv(const Eigen::Vector2d& y, const Eigen::Vector3d& pole) {
+Eigen::Vector3d sphereChart_stereo_inv_impl(const Eigen::Vector2d& y, const Eigen::Vector3d& pole) {
     const Vector3d etaRotated = e3ProjectSphereInv(y);
-    const SO3 sphereRot = SO3::SO3FromVectors(-pole, Eigen::Vector3d::Unit(2));
+    const SO3d sphereRot = SO3d::SO3FromVectors(-pole, Eigen::Vector3d::Unit(2));
     return sphereRot.inverse() * etaRotated;
 }
 
-Eigen::Matrix<double, 2, 3> stereoSphereChartDiff(const Eigen::Vector3d& eta, const Eigen::Vector3d& pole) {
-    const SO3 sphereRot = SO3::SO3FromVectors(-pole, Eigen::Vector3d::Unit(2));
-    const Vector3d etaRotated = sphereRot * eta;
+Eigen::Matrix<double, 2, 3> sphereChart_stereo_diff0_impl(const Eigen::Vector3d& pole) {
+    const SO3d sphereRot = SO3d::SO3FromVectors(-pole, Eigen::Vector3d::Unit(2));
+    const Vector3d etaRotated = sphereRot * pole;
     return e3ProjectSphereDiff(etaRotated) * sphereRot.asMatrix();
 }
 
-Eigen::Matrix<double, 3, 2> stereoSphereChartInvDiff(const Eigen::Vector2d& y, const Eigen::Vector3d& pole) {
-    const SO3 sphereRot = SO3::SO3FromVectors(-pole, Eigen::Vector3d::Unit(2));
-    return sphereRot.inverse().asMatrix() * e3ProjectSphereInvDiff(y);
+Eigen::Matrix<double, 3, 2> sphereChart_stereo_inv_diff0_impl(const Eigen::Vector3d& pole) {
+    const SO3d sphereRot = SO3d::SO3FromVectors(-pole, Eigen::Vector3d::Unit(2));
+    return sphereRot.inverse().asMatrix() * e3ProjectSphereInvDiff(Vector2d::Zero());
+}
+
+const EmbeddedCoordinateChart<3, 2> sphereChart_normal{
+    [](const Eigen::Vector3d& eta, const Eigen::Vector3d& pole) {
+        const static Vector3d e3 = Eigen::Vector3d::Unit(2);
+        const SO3d sphereRot = SO3d::SO3FromVectors(pole, e3);
+        const Vector3d y = sphereRot * eta;
+
+        const double sin_th = (SO3d::skew(y) * e3).norm();
+        const double cos_th = y.transpose() * e3;
+
+        const double th = atan2(sin_th, cos_th);
+        Vector3d omega;
+        if (abs(th) < 1e-8) {
+            omega = SO3d::skew(y) * e3;
+        } else {
+            omega = SO3d::skew(y) * e3 * (th / sin_th);
+        }
+
+        return Vector2d(omega.segment<2>(0));
+    },
+    [](const Eigen::Vector2d& eps, const Eigen::Vector3d& pole) {
+        const static Vector3d e3 = Eigen::Vector3d::Unit(2);
+        const Vector3d omega = (Vector3d() << eps, 0.0).finished();
+        const Vector3d y = SO3d::exp(-omega) * e3;
+
+        const SO3d sphereRot = SO3d::SO3FromVectors(pole, e3);
+        const Vector3d eta = sphereRot.inverse() * y;
+
+        return eta;
+    },
+    [](const Eigen::Vector3d& pole) {
+        const static Vector3d e3 = Eigen::Vector3d::Unit(2);
+        const SO3d sphereRot = SO3d::SO3FromVectors(pole, e3);
+        Matrix<double, 2, 3> diff;
+        diff << 0.0, 1.0, 0.0, -1.0, 0.0, 0.0;
+        diff = diff * sphereRot.asMatrix();
+        return diff;
+    },
+    [](const Eigen::Vector3d& pole) {
+        const static Vector3d e3 = Eigen::Vector3d::Unit(2);
+        const SO3d sphereRot = SO3d::SO3FromVectors(pole, e3);
+        Matrix<double, 3, 2> diff;
+        diff << 0.0, -1.0, 1.0, 0.0, 0.0, 0.0;
+        diff = sphereRot.inverse().asMatrix() * diff;
+        return diff;
+    }};
+
+const MatrixXd coordinateDifferential_invdepth_euclid(const VIOState& Xi0) {
+    // Coordinate can be changed between euclidean and inverse depth by
+    // x_{id} = eps_{id} o eps_{eu}^{-1} (x_{eu})
+    // This function computes the differential of the above operation and the chart origin xi0.
+
+    // Rows and their corresponding state components
+    // I am using zero indexing and half open ranges
+    // [0,6): Pose deviation from Xi0.pose
+    // [6,9) Body-fixed velocity
+    // [9,15): Pose deviation from Xi0.cameraOffset
+    // [9+3i,9+3(i+1)): Body-fixed landmark i (euclidean)
+
+    // Cols and their corresponding state components
+    // [0,6): Pose deviation from Xi0.pose
+    // [6,9) Body-fixed velocity
+    // [9,15): Pose deviation from Xi0.cameraOffset
+    // [15+3i,15+3(i+1)): Body-fixed landmark i (inverse depth)
+
+    const int& N = Xi0.cameraLandmarks.size();
+    MatrixXd M = MatrixXd::Identity(VIOSensorState::CompDim + 3 * N, VIOSensorState::CompDim + 3 * N);
+
+    for (int i = 0; i < N; ++i) {
+        const double& rho0i = 1. / Xi0.cameraLandmarks[i].p.norm();
+        const Vector3d& y0i = Xi0.cameraLandmarks[i].p * rho0i;
+
+        Matrix3d Mi;
+        Mi.block<2, 3>(0, 0) =
+            rho0i * sphereChart_stereo.chartDiff0(y0i) * (Matrix3d::Identity() - y0i * y0i.transpose());
+        Mi.block<1, 3>(2, 0) = -rho0i * rho0i * y0i.transpose();
+
+        M.block<3, 3>(VIOSensorState::CompDim + 3 * i, VIOSensorState::CompDim + 3 * i) = Mi;
+    }
+
+    return M;
+}
+
+const MatrixXd coordinateDifferential_normal_euclid(const VIOState& Xi0) {
+
+    auto coordChange = [&](const VectorXd& eps) {
+        // return VIOChart_euclid.bundleChart(VIOChart_normal.bundleChart.inv(eps, Xi0), Xi0);
+        return VIOChart_normal(VIOChart_euclid.inv(eps, Xi0), Xi0);
+    };
+    const int& N = Xi0.cameraLandmarks.size();
+    const MatrixXd M = numericalDifferential(coordChange, VectorXd::Zero(VIOSensorState::CompDim + 3 * N));
+
+    return M;
 }
