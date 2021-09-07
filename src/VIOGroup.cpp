@@ -1,4 +1,4 @@
-#include "eqvio/VIOGroup.h"
+#include "eqf_vio/VIOGroup.h"
 #include "liepp/SEn3.h"
 
 using namespace Eigen;

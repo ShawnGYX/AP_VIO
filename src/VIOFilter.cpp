@@ -3,9 +3,9 @@
 #include "eigen3/Eigen/QR"
 #include "opencv2/imgproc.hpp"
 
-#include "eqvio/EqFMatrices.h"
-#include "eqvio/VIOFilter.h"
-#include "eqvio/VIOFilterSettings.h"
+#include "eqf_vio/EqFMatrices.h"
+#include "eqf_vio/VIOFilter.h"
+#include "eqf_vio/VIOFilterSettings.h"
 
 using namespace Eigen;
 using namespace std;

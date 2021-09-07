@@ -48,22 +48,6 @@ else()
     set(GIFT_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/external/GIFT/GIFT/include")
 endif()
 
-# Add argparse
-find_package(argparse QUIET)
-if (${argparse_FOUND})
-    message("argparse is being used as an installed package.")
-    set(argparse_INCLUDE_DIRS "argparse::argparse")
-else()
-    message("argparse is being used as a git submodule.")
-    execute_process(COMMAND git submodule update --init --recursive --remote
-                    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/external/argparse
-                    RESULT_VARIABLE argparse_SUBMOD_RESULT)
-    if (${argparse_SUBMOD_RESULT})
-        message(FATAL_ERROR "argparse was not found as a package and could not be included as a submodule.")
-    endif()
-    set(argparse_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/external/argparse/include")
-endif()
-
 # Add LiePP
 
 message("LiePP is being used as a git submodule.")

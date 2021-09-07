@@ -1,4 +1,4 @@
-#include "eqvio/Geometry.h"
+#include "eqf_vio/Geometry.h"
 
 Eigen::MatrixXd
 numericalDifferential(std::function<Eigen::VectorXd(const Eigen::VectorXd&)> f, const Eigen::VectorXd& x, double h) {

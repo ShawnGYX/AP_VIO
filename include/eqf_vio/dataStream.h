@@ -7,7 +7,7 @@
 #include "VisionMeasurement.h"
 
 #include "GIFT/PointFeatureTracker.h"
-// #include "GIFT/keyPointFeatureTracker.h"
+#include "GIFT/keyPointFeatureTracker.h"
 #include "GIFT/Camera.h"
 #include "GIFT/Visualisation.h"
 #include "opencv2/highgui/highgui.hpp"

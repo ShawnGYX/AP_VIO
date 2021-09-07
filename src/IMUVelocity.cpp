@@ -1,4 +1,4 @@
-#include "eqvio/IMUVelocity.h"
+#include "eqf_vio/IMUVelocity.h"
 
 IMUVelocity IMUVelocity::Zero() {
     IMUVelocity result;
