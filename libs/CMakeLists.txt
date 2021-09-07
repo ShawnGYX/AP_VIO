@@ -1,19 +1,19 @@
 
 # The order of modules is important!
-set(eqf_violib_dirs
+set(eqviolib_dirs
     core
 )
 if (BUILD_VISUALISATION)
-    list(APPEND eqf_violib_dirs visualisation)
+    list(APPEND eqviolib_dirs visualisation)
 endif()
 
 set(MODULE_INCLUDE_DIRS "")
 set(MODULE_LIBS "")
 
-foreach(module ${eqf_violib_dirs})
+foreach(module ${eqviolib_dirs})
     add_subdirectory(${module})
-    list(APPEND MODULE_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/${module}/include")
-    list(APPEND MODULE_LIBS "eqf_violib_${module}")
+    list(APPEND MODULE_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/libs/${module}/include")
+    list(APPEND MODULE_LIBS "eqviolib_${module}")
 endforeach()
 
 set(MODULE_INCLUDE_DIRS ${MODULE_INCLUDE_DIRS} PARENT_SCOPE)

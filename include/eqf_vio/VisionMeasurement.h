@@ -8,6 +8,7 @@
 
 #include <map>
 #include <memory>
+#include <iomanip>
 
 struct VisionMeasurement {
     double stamp;
@@ -25,3 +26,4 @@ VisionMeasurement operator-(const VisionMeasurement& y1, const VisionMeasurement
 
 CSVLine& operator<<(CSVLine& line, const VisionMeasurement& vision);
 CSVLine& operator>>(CSVLine& line, VisionMeasurement& vision);
+std::ostream& operator<<(std::ostream& os, const VisionMeasurement& measurement);

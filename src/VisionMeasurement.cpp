@@ -32,6 +32,16 @@ CSVLine& operator<<(CSVLine& line, const VisionMeasurement& vision) {
     return line;
 }
 
+std::ostream& operator<<(std::ostream& os, const VisionMeasurement& measurement) {
+    const int Num = measurement.camCoordinates.size();
+    const double ts = measurement.stamp;
+    os << std::setprecision(20) <<  ts << std::setprecision(5) << ", , , , , , ," << Num;
+    for (const pair<int, Vector2d>& cc : measurement.camCoordinates) {
+        os <<", " << cc.first <<", "<< cc.second;
+    }
+    return os;
+}
+
 VisionMeasurement operator-(const VisionMeasurement& y1, const VisionMeasurement& y2) {
     VisionMeasurement yDiff;
     for (const pair<int, Vector2d>& cc1 : y1.camCoordinates) {

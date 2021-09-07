@@ -39,25 +39,25 @@ if (${GIFT_FOUND})
 else()
     message("GIFT is being used as a git submodule.")
     execute_process(COMMAND git submodule update --init --recursive --remote
-                    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/external/GIFT
+                    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/External/GIFT
                     RESULT_VARIABLE GIFT_SUBMOD_RESULT)
     if (${GIFT_SUBMOD_RESULT})
         message(FATAL_ERROR "GIFT was not found as a package and could not be included as a submodule.")
     endif()
-    add_subdirectory(external/GIFT)
-    set(GIFT_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/external/GIFT/GIFT/include")
+    add_subdirectory(External/GIFT)
+    set(GIFT_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/External/GIFT/GIFT/include")
 endif()
 
 # Add LiePP
 
 message("LiePP is being used as a git submodule.")
 execute_process(COMMAND git submodule update --init --recursive --remote
-                WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/external/LiePP
+                WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/External/LiePP
                 RESULT_VARIABLE LiePP_SUBMOD_RESULT)
 if (${argparse_SUBMOD_RESULT})
     message(FATAL_ERROR "LiePP could not be included as a submodule.")
 endif()
-set(LiePP_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/external/LiePP/include")
+set(LiePP_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/External/LiePP/include")
 
 
 

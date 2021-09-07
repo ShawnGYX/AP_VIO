@@ -55,21 +55,16 @@ static double get_time_seconds()
     return (tp.tv_sec + (tp.tv_usec * 1.0e-6));
 }
 
-VisionMeasurement convertGIFTFeatures(const std::vector<GIFT::Feature> &GIFTFeatures, const double &stamp)
-{
+VisionMeasurement convertGIFTFeatures(const std::vector<GIFT::Feature>& GIFTFeatures, const double& stamp) {
     VisionMeasurement measurement;
     measurement.stamp = stamp;
-    measurement.numberOfBearings = GIFTFeatures.size();
-    measurement.bearings.resize(GIFTFeatures.size());
-    std::transform(GIFTFeatures.begin(), GIFTFeatures.end(), measurement.bearings.begin(), [](const GIFT::Feature &f)
-                   {
-                       Point3d pt;
-                       pt.p = f.sphereCoordinates();
-                       pt.id = f.idNumber;
-                       return pt;
-                   });
+    std::transform(
+        GIFTFeatures.begin(), GIFTFeatures.end(),
+        std::inserter(measurement.camCoordinates, measurement.camCoordinates.begin()),
+        [](const GIFT::Feature& f) { return std::make_pair(f.idNumber, f.camCoordinatesEigen()); });
     return measurement;
 }
+
 
 // Start the IMU receiver and Camera capture threads
 dataStream::dataStream()
@@ -290,8 +285,10 @@ void dataStream::cam_proc_thread()
             // Send VP message to AutoPilot
             update_vp_estimate(stateEstimate);
             // Record output data
+            CSVLine line;
+            line << stateEstimate;
             outputFile << std::setprecision(20) << filter.getTime() << std::setprecision(5) << ", "
-                       << stateEstimate << std::endl;
+                       << line << std::endl;
         }
         usleep(100);
     }
@@ -337,9 +334,9 @@ void dataStream::update_vp_estimate(const VIOState estimatedState)
     }
 
     // Load estimates from the filter
-    const Eigen::Quaterniond &attitude = estimatedState.pose.R().asQuaternion();
-    const Eigen::Vector3d &position = estimatedState.pose.x();
-    const Eigen::Vector3d &vel = estimatedState.velocity;
+    const Eigen::Quaterniond &attitude = estimatedState.sensor.pose.R.asQuaternion();
+    const Eigen::Vector3d &position = estimatedState.sensor.pose.x;
+    const Eigen::Vector3d &vel = estimatedState.sensor.velocity;
 
     Eigen::Vector3d euler = attitude.toRotationMatrix().eulerAngles(0, 1, 2);
     float roll = euler[0];
