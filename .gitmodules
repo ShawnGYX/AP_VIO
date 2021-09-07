@@ -1,9 +1,6 @@
-[submodule "external/GIFT"]
-	path = external/GIFT
-	url = git@github.com:pvangoor/GIFT.git
-[submodule "external/argparse"]
-	path = external/argparse
-	url = git@github.com:p-ranav/argparse.git
-[submodule "external/LiePP"]
-	path = external/LiePP
-	url = git@github.com:pvangoor/LiePP
+[submodule "External/LiePP"]
+	path = External/LiePP
+	url = https://github.com/pvangoor/LiePP
+[submodule "External/GIFT"]
+	path = External/GIFT
+	url = https://github.com/pvangoor/GIFT
