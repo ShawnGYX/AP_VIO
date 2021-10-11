@@ -5,7 +5,7 @@ This repository contains an implementation of an Equivariant Filter (EqF) for Vi
 ## Required Dependencies
 
 - C++17 (GCC Version >=8.3)
-- CMake ( for build environment ): ```sudo apt install cmake```
+- CMake ( for build environment, Version >=3.12 ): ```sudo apt install cmake```
 
 - Eigen 3: ```sudo apt install libeigen3-dev```
 
