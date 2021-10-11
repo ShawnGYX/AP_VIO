@@ -37,9 +37,9 @@ make -j2
 - 
 
 ## Preparations
-
+We use Kalibr to calibrate the camera intrinsics and Camera-IMU extrinsics. They can be done all with one single sequence. The calibration target is an Aprilgrid (can be downloaded from **[here](https://drive.google.com/file/d/0B0T1sizOvRsUdjFJem9mQXdiMTQ/view?usp=sharing&resourcekey=0-0Cn7Pkf1xyNGurAnRJH3aA)**) 
 ### Camera Calibration 
-We use a checkerboard to calibrate the camera. Download the tools from ```https://github.com/STR-ANU/VIO-Tools```.
+Download the recording tools from ```https://github.com/STR-ANU/VIO-Tools```.
 
 ### Camera-IMU Calibration
 
