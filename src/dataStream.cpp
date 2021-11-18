@@ -11,10 +11,12 @@ struct cam_msg
 std::mutex mtx_filter;
 std::mutex mtx_cam_queue;
 std::mutex mtx_imu_queue;
+std::mutex mtx_cam_save_queue;
 
 // Passing messages between recv and proc threads
 std::queue<cam_msg> cam_queue;
 std::queue<IMUVelocity> imu_queue;
+std::queue<cam_msg> cam_save_queue;
 
 static mavlink_status_t mav_status;
 static uint8_t target_system;
@@ -142,6 +144,7 @@ void dataStream::startThreads()
     // printf("Start receiving camera frames.\n");
     cam_proc_th = std::thread(&dataStream::cam_proc_thread, this);
     // printf("Start processing camera frames.\n");
+    cam_save_th = std::thread(&dataStream::cam_save_thread, this);
     printf("All threads initialized.\n");
 }
 
@@ -251,6 +254,14 @@ void dataStream::cam_recv_thread()
             cam_queue.pop();
         }
 
+        mtx_cam_save_queue.lock();
+        cam_save_queue.push(cam_msg(t1,frame));
+        mtx_cam_save_queue.unlock();
+        if (cam_save_queue.size() >2)
+        {
+            cam_save_queue.pop();
+        }
+
         // Adjust camera exposure
         cap.set(cv::CAP_PROP_EXPOSURE, exposure);
         cv::Scalar img_mean_s = cv::mean(frame);
@@ -268,6 +279,24 @@ void dataStream::cam_recv_thread()
         {
             exposure = 1e-6;
         }
+    }
+}
+
+void dataStream::cam_save_thread()
+{
+    while (true)
+    {
+        if (!cam_save_queue.empty())
+        {
+            mtx_cam_save_queue.lock();
+            cam_msg tobeSave = cam_save_queue.back();
+            mtx_cam_save_queue.unlock();
+            std::string tn = std::to_string(tobeSave.t_now);
+            std::string ext(".jpg");
+            tn.append(ext);
+            cv::imwrite(tn, tobeSave.img);
+        }
+        usleep(100);
     }
 }
 
