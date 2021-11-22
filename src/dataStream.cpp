@@ -104,7 +104,7 @@ VIOState dataStream::callbackImage(const cv::Mat image, const double ts)
     const std::vector<GIFT::Feature> features = featureTracker.outputFeatures();
     std::cout << "New image received, with " << features.size() << " features." << std::endl;
     const VisionMeasurement visionData = convertGIFTFeatures(features, ts);
-    internalFile << visionData << std::endl;
+    // internalFile << visionData << std::endl;
 
     // Pass the feature data to the filter
     mtx_filter.lock();
@@ -122,6 +122,9 @@ void dataStream::startThreads()
 {
     // Set up output file, add header
     std::time_t t0 = std::time(nullptr);
+
+    int flag = mkdir(std::put_time(std::localtime(&t0), "%F_%T"),S_IRWXU);
+
     std::stringstream outputFileNameStream;
     outputFileNameStream << "EQF_VIO_output_" << std::put_time(std::localtime(&t0), "%F_%T") << ".csv";
     outputFile = std::ofstream(outputFileNameStream.str());
@@ -132,8 +135,10 @@ void dataStream::startThreads()
     std::stringstream internalFileNameStream;
     internalFileNameStream << "EQF_VIO_internal_" << std::put_time(std::localtime(&t0), "%F_%T") << ".csv";
     internalFile = std::ofstream(internalFileNameStream.str());
-    internalFile << "time, gyro_x, gyro_y, gyro_z, accel_x, accel_y, accel_z, N, "
-                 << "p1id, p1x, p1y, p1z, ..., ..., ..., ..., pNid, pNx, pNy, pNz" << std::endl;
+    // internalFile << "time, gyro_x, gyro_y, gyro_z, accel_x, accel_y, accel_z, N, "
+    //              << "p1id, p1x, p1y, p1z, ..., ..., ..., ..., pNid, pNx, pNy, pNz" << std::endl;
+    internalFile << "time, gyro_x, gyro_y, gyro_z, accel_x, accel_y, accel_z"<< std::endl;
+
 
     // Start the threads
     imu_recv_th = std::thread(&dataStream::imu_recv_thread, this);

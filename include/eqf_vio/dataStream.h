@@ -41,6 +41,10 @@
 #include <mutex>
 #include <queue>
 
+#include <sys/io.h>
+#include <sys/types.h>
+#include <dirent.h>
+
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 #define MAVLINK_USE_CONVENIENCE_FUNCTIONS
@@ -72,6 +76,7 @@ class dataStream{
     std::ofstream internalFile;
     bool indoor_lighting;
     int fd;
+
 
     cv::Mat K_coef;
     cv::Mat D_coef;
