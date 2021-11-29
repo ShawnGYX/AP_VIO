@@ -74,7 +74,9 @@ class dataStream{
     void update_vp_estimate(const VIOState estimatedState);
     std::ofstream outputFile;
     std::ofstream internalFile;
+    std::ofstream timestampFile;
     bool indoor_lighting;
+    bool recording;
     int fd;
 
     std::string folderName;

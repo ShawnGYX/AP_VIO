@@ -4,9 +4,10 @@
 // Used for store frame messages
 struct cam_msg
 {
-    cam_msg(double t, cv::Mat i) : t_now(t), img(i) {}
+    cam_msg(double t, cv::Mat i, double ex) : t_now(t), img(i), expo(ex) {}
     double t_now;
     cv::Mat img;
+    double expo;
 };
 
 std::mutex mtx_filter;
@@ -122,47 +123,66 @@ VIOState dataStream::callbackImage(const cv::Mat image, const double ts)
 void dataStream::startThreads()
 {
     // Set up output file, add header
-    std::time_t t0 = std::time(nullptr);
-    std::stringstream localTime;
-    localTime << "AP_VIO_Output_" << std::put_time(std::localtime(&t0), "%F_%T");
-    folderName = localTime.str();
-    const std::string imageFolderName = folderName.append("/Image"); 
-    const int dir_err = mkdir(folderName.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-    const int img_dir_err = mkdir(imageFolderName.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-    if (-1 == dir_err || -1 == img_dir_err)
+    if (!recording)
     {
-        printf("Error creating directory!\n");
-        exit(1);
+        // Start the threads
+        imu_recv_th = std::thread(&dataStream::imu_recv_thread, this);
+        printf("Start receiving IMU message.\n");
+        imu_proc_th = std::thread(&dataStream::imu_proc_thread, this);
+        printf("Start processing IMU message.\n");
+        cam_recv_th = std::thread(&dataStream::cam_recv_thread, this);
+        printf("Start receiving camera frames.\n");
+        cam_proc_th = std::thread(&dataStream::cam_proc_thread, this);
+        printf("Start processing camera frames.\n");
+        printf("Recording is disabled. All threads initialized.\n");
     }
-    std::stringstream timestampFileNameStream;
-    // timestampFileNameStream << "";
+    else
+    {
+        std::time_t t0 = std::time(nullptr);
+        std::stringstream localTime;
+        localTime << "AP_VIO_Output_" << std::put_time(std::localtime(&t0), "%F_%T");
+        folderName = localTime.str();
+        const std::string imageFolderName = folderName.append("/Image"); 
+        const int dir_err = mkdir(folderName.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+        const int img_dir_err = mkdir(imageFolderName.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+        if (-1 == dir_err || -1 == img_dir_err)
+        {
+            printf("Error creating directory!\n");
+            exit(1);
+        }
+        std::stringstream timestampFileNameStream;
+        timestampFileNameStream << folderName << "/timestamp.csv";
+        timestampFile = std::ofstream(timestampFileNameStream.str());
+        timestampFile << "time, filename, exposure" << std::endl;
 
-    std::stringstream outputFileNameStream;
-    outputFileNameStream << folderName << "/EQF_VIO_output.csv";
-    outputFile = std::ofstream(outputFileNameStream.str());
-    outputFile << "time, tx, ty, tz, qw, qx, qy, qz, vx, vy, vz, N, "
-               << "p1id, p1x, p1y, p1z, ..., ..., ..., ..., pNid, pNx, pNy, pNz" << std::endl;
+        std::stringstream outputFileNameStream;
+        outputFileNameStream << folderName << "/EQF_VIO_output.csv";
+        outputFile = std::ofstream(outputFileNameStream.str());
+        outputFile << "time, tx, ty, tz, qw, qx, qy, qz, vx, vy, vz, N, "
+                << "p1id, p1x, p1y, p1z, ..., ..., ..., ..., pNid, pNx, pNy, pNz" << std::endl;
 
-    // Set up recording file
-    std::stringstream internalFileNameStream;
-    internalFileNameStream << folderName << "/imu.csv";
-    internalFile = std::ofstream(internalFileNameStream.str());
-    // internalFile << "time, gyro_x, gyro_y, gyro_z, accel_x, accel_y, accel_z, N, "
-    //              << "p1id, p1x, p1y, p1z, ..., ..., ..., ..., pNid, pNx, pNy, pNz" << std::endl;
-    internalFile << "time, gyro_x, gyro_y, gyro_z, accel_x, accel_y, accel_z"<< std::endl;
+        // Set up recording file
+        std::stringstream internalFileNameStream;
+        internalFileNameStream << folderName << "/imu.csv";
+        internalFile = std::ofstream(internalFileNameStream.str());
+        // internalFile << "time, gyro_x, gyro_y, gyro_z, accel_x, accel_y, accel_z, N, "
+        //              << "p1id, p1x, p1y, p1z, ..., ..., ..., ..., pNid, pNx, pNy, pNz" << std::endl;
+        internalFile << "time, gyro_x, gyro_y, gyro_z, accel_x, accel_y, accel_z"<< std::endl;
 
 
-    // Start the threads
-    imu_recv_th = std::thread(&dataStream::imu_recv_thread, this);
-    // printf("Start receiving IMU message.\n");
-    imu_proc_th = std::thread(&dataStream::imu_proc_thread, this);
-    // printf("Start processing IMU message.\n");
-    cam_recv_th = std::thread(&dataStream::cam_recv_thread, this);
-    // printf("Start receiving camera frames.\n");
-    cam_proc_th = std::thread(&dataStream::cam_proc_thread, this);
-    // printf("Start processing camera frames.\n");
-    cam_save_th = std::thread(&dataStream::cam_save_thread, this);
-    printf("All threads initialized.\n");
+        // Start the threads
+        imu_recv_th = std::thread(&dataStream::imu_recv_thread, this);
+        printf("Start receiving IMU message.\n");
+        imu_proc_th = std::thread(&dataStream::imu_proc_thread, this);
+        printf("Start processing IMU message.\n");
+        cam_recv_th = std::thread(&dataStream::cam_recv_thread, this);
+        printf("Start receiving camera frames.\n");
+        cam_proc_th = std::thread(&dataStream::cam_proc_thread, this);
+        printf("Start processing camera frames.\n");
+        cam_save_th = std::thread(&dataStream::cam_save_thread, this);
+        printf("Start saving data.\n");
+        printf("All threads initialized.\n");
+    }
 }
 
 // Kill the threads
@@ -264,7 +284,7 @@ void dataStream::cam_recv_thread()
 
         // Add new message to the queue. The size limit is 2.
         mtx_cam_queue.lock();
-        cam_queue.push(cam_msg(t1, frame));
+        cam_queue.push(cam_msg(t1, frame, exposure));
         mtx_cam_queue.unlock();
         if (cam_queue.size() > 2)
         {
@@ -272,7 +292,7 @@ void dataStream::cam_recv_thread()
         }
 
         mtx_cam_save_queue.lock();
-        cam_save_queue.push(cam_msg(t1,frame));
+        cam_save_queue.push(cam_msg(t1,frame, exposure));
         mtx_cam_save_queue.unlock();
         if (cam_save_queue.size() >2)
         {
@@ -311,6 +331,7 @@ void dataStream::cam_save_thread()
             std::stringstream imgName;
             imgName << folderName.c_str() << "/Image" << std::to_string(tobeSave.t_now) << ".jpg";
             cv::imwrite(imgName.str(), tobeSave.img);
+            timestampFile << tobeSave.t_now << "," << imgName.str() << "," << tobeSave.expo << std::endl;
         }
         usleep(100);
     }

@@ -59,3 +59,4 @@ main:
   showVisualisation: true
   limitRate: 20.0 # Hz
   indoorLighting: True
+  recording: True

@@ -112,6 +112,7 @@ int main(int argc, const char *argv[])
     ds.featureTracker = GIFT::PointFeatureTracker(camera);
     ds.featureTracker.settings.configure(eqf_vioConfig["GIFT"]);
     ds.indoor_lighting = eqf_vioConfig["main"]["indoorLighting"].as<bool>();
+    ds.recording = eqf_vioConfig["main"]["recording"].as<bool>();
     std::cout << "Feature tracker initialized." << std::endl;
     
     // Open the given serial port
