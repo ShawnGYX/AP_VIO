@@ -1,4 +1,5 @@
 build/*
+AP_VIO_Output*
 EQF_VIO_output*
 *.jpg
 .vscode/settings.json

@@ -1,4 +1,5 @@
 #include "eqf_vio/dataStream.h"
+// #include "boost/filesystem.hpp"
 
 // Used for store frame messages
 struct cam_msg
@@ -122,18 +123,29 @@ void dataStream::startThreads()
 {
     // Set up output file, add header
     std::time_t t0 = std::time(nullptr);
-
-    int flag = mkdir(std::put_time(std::localtime(&t0), "%F_%T"),S_IRWXU);
+    std::stringstream localTime;
+    localTime << "AP_VIO_Output_" << std::put_time(std::localtime(&t0), "%F_%T");
+    folderName = localTime.str();
+    const std::string imageFolderName = folderName.append("/Image"); 
+    const int dir_err = mkdir(folderName.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    const int img_dir_err = mkdir(imageFolderName.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    if (-1 == dir_err || -1 == img_dir_err)
+    {
+        printf("Error creating directory!\n");
+        exit(1);
+    }
+    std::stringstream timestampFileNameStream;
+    // timestampFileNameStream << "";
 
     std::stringstream outputFileNameStream;
-    outputFileNameStream << "EQF_VIO_output_" << std::put_time(std::localtime(&t0), "%F_%T") << ".csv";
+    outputFileNameStream << folderName << "/EQF_VIO_output.csv";
     outputFile = std::ofstream(outputFileNameStream.str());
     outputFile << "time, tx, ty, tz, qw, qx, qy, qz, vx, vy, vz, N, "
                << "p1id, p1x, p1y, p1z, ..., ..., ..., ..., pNid, pNx, pNy, pNz" << std::endl;
 
     // Set up recording file
     std::stringstream internalFileNameStream;
-    internalFileNameStream << "EQF_VIO_internal_" << std::put_time(std::localtime(&t0), "%F_%T") << ".csv";
+    internalFileNameStream << folderName << "/imu.csv";
     internalFile = std::ofstream(internalFileNameStream.str());
     // internalFile << "time, gyro_x, gyro_y, gyro_z, accel_x, accel_y, accel_z, N, "
     //              << "p1id, p1x, p1y, p1z, ..., ..., ..., ..., pNid, pNx, pNy, pNz" << std::endl;
@@ -296,10 +308,9 @@ void dataStream::cam_save_thread()
             mtx_cam_save_queue.lock();
             cam_msg tobeSave = cam_save_queue.back();
             mtx_cam_save_queue.unlock();
-            std::string tn = std::to_string(tobeSave.t_now);
-            std::string ext(".jpg");
-            tn.append(ext);
-            cv::imwrite(tn, tobeSave.img);
+            std::stringstream imgName;
+            imgName << folderName.c_str() << "/Image" << std::to_string(tobeSave.t_now) << ".jpg";
+            cv::imwrite(imgName.str(), tobeSave.img);
         }
         usleep(100);
     }

@@ -77,6 +77,7 @@ class dataStream{
     bool indoor_lighting;
     int fd;
 
+    std::string folderName;
 
     cv::Mat K_coef;
     cv::Mat D_coef;
