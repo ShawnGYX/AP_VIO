@@ -159,7 +159,7 @@ void dataStream::startThreads()
         std::stringstream outputFileNameStream;
         outputFileNameStream << folderName << "/EQF_VIO_output.csv";
         outputFile = std::ofstream(outputFileNameStream.str());
-        outputFile << "time, tx, ty, tz, qw, qx, qy, qz, vx, vy, vz, N, "
+        outputFile << "time, tx, ty, tz, qw, qx, qy, qz, vx, vy, vz, ox, oy, oz, N, "
                 << "p1id, p1x, p1y, p1z, ..., ..., ..., ..., pNid, pNx, pNy, pNz" << std::endl;
 
         // Set up recording file
@@ -330,9 +330,9 @@ void dataStream::cam_save_thread()
             cam_msg tobeSave = cam_save_queue.back();
             mtx_cam_save_queue.unlock();
             std::stringstream imgName;
-            imgName << folderName.c_str() << "/Image/" << std::to_string(int(tobeSave.t_now*1e6)) << ".jpg";
+            imgName << folderName.c_str() << "/Image/" << std::to_string((int)(tobeSave.t_now*1e6)) << ".jpg";
             cv::imwrite(imgName.str(), tobeSave.img);
-            timestampFile << tobeSave.t_now << "," << imgName.str() << "," << tobeSave.expo << std::endl;
+            timestampFile << std::setprecision(20) << tobeSave.t_now << "," << imgName.str() << "," << std::setprecision(5) << tobeSave.expo << std::endl;
         }
         usleep(100);
     }
