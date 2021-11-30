@@ -330,11 +330,11 @@ void dataStream::cam_save_thread()
             cam_msg tobeSave = cam_save_queue.back();
             mtx_cam_save_queue.unlock();
             std::stringstream imgName;
-            imgName << folderName.c_str() << "/Image/" << std::to_string((int)(tobeSave.t_now*1e6)) << ".jpg";
+            imgName << folderName.c_str() << "/Image/" << std::setprecision(20) << tobeSave.t_now*1e6 << ".jpg";
             cv::imwrite(imgName.str(), tobeSave.img);
             timestampFile << std::setprecision(20) << tobeSave.t_now << "," << imgName.str() << "," << std::setprecision(5) << tobeSave.expo << std::endl;
         }
-        usleep(100);
+        // usleep(100);
     }
 }
 
@@ -357,7 +357,7 @@ void dataStream::cam_proc_thread()
             outputFile << std::setprecision(20) << filter.getTime() << std::setprecision(5) << ", "
                        << line << std::endl;
         }
-        usleep(100);
+        // usleep(100);
     }
 }
 
@@ -375,7 +375,7 @@ void dataStream::imu_proc_thread()
             this->filter.processIMUData(tobeProc);
             mtx_filter.unlock();
         }
-        usleep(100);
+        // usleep(100);
     }
 }
 
