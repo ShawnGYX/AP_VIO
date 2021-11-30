@@ -45,6 +45,8 @@
 #include <sys/types.h>
 #include <dirent.h>
 
+#include <errno.h>
+
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 #define MAVLINK_USE_CONVENIENCE_FUNCTIONS

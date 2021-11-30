@@ -142,12 +142,13 @@ void dataStream::startThreads()
         std::stringstream localTime;
         localTime << "AP_VIO_Output_" << std::put_time(std::localtime(&t0), "%F_%T");
         folderName = localTime.str();
-        const std::string imageFolderName = folderName.append("/Image"); 
-        const int dir_err = mkdir(folderName.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-        const int img_dir_err = mkdir(imageFolderName.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+        localTime << "/Image";
+        const std::string imageFolderName = localTime.str(); 
+        const int dir_err = mkdir(folderName.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+        const int img_dir_err = mkdir(imageFolderName.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
         if (-1 == dir_err || -1 == img_dir_err)
         {
-            printf("Error creating directory!\n");
+            printf("Error: %s\n", strerror(errno));
             exit(1);
         }
         std::stringstream timestampFileNameStream;
