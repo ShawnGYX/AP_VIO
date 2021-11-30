@@ -330,7 +330,7 @@ void dataStream::cam_save_thread()
             cam_msg tobeSave = cam_save_queue.back();
             mtx_cam_save_queue.unlock();
             std::stringstream imgName;
-            imgName << folderName.c_str() << "/Image" << std::to_string(tobeSave.t_now*1e6) << ".jpg";
+            imgName << folderName.c_str() << "/Image/" << std::to_string(int(tobeSave.t_now*1e6)) << ".jpg";
             cv::imwrite(imgName.str(), tobeSave.img);
             timestampFile << tobeSave.t_now << "," << imgName.str() << "," << tobeSave.expo << std::endl;
         }
