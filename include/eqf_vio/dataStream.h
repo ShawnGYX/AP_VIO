@@ -33,6 +33,8 @@
 #include <asm/termbits.h>
 #include <sys/ioctl.h>
 
+#include <filesystem>
+
 #include <cstdlib>
 #include <cstdint>
 #include <cstddef>
@@ -65,6 +67,7 @@ class dataStream{
     void cam_recv_thread();
     void imu_recv_thread();
     void cam_proc_thread();
+    void cam_save_thread();
     void imu_proc_thread();
     void update_vp_estimate(const VIOState estimatedState);
     std::ofstream outputFile;
@@ -88,6 +91,7 @@ class dataStream{
     std::thread cam_recv_th;
     std::thread imu_proc_th;
     std::thread cam_proc_th;
+    std::thread cam_save_th;
     bool send_ready = false;
     uint64_t last_observation_usec;
     uint64_t time_offset_us;
