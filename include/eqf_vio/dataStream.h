@@ -5,6 +5,7 @@
 #include "VIOFilter.h"
 #include "VIOFilterSettings.h"
 #include "VisionMeasurement.h"
+#include "VIOWriter.h"
 
 #include "GIFT/PointFeatureTracker.h"
 // #include "GIFT/keyPointFeatureTracker.h"
@@ -71,7 +72,10 @@ class dataStream{
     void imu_proc_thread();
     void update_vp_estimate(const VIOState estimatedState);
     std::ofstream outputFile;
-    std::ofstream internalFile;
+    std::ofstream mav_imu;
+    std::ofstream cam;
+    VIOWriter vioWriter;
+    std::stringstream outputFolderStream
     bool indoor_lighting;
     int fd;
 
@@ -83,8 +87,6 @@ class dataStream{
 
     VIOState callbackImage(const cv::Mat image, const double ts);
 
-    VIOState tobeSend;
-
     private:
 
     std::thread imu_recv_th;
@@ -92,7 +94,6 @@ class dataStream{
     std::thread imu_proc_th;
     std::thread cam_proc_th;
     std::thread cam_save_th;
-    bool send_ready = false;
     uint64_t last_observation_usec;
     uint64_t time_offset_us;
 
