@@ -15,8 +15,8 @@
     along with EqVIO.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "eqvio/VIOWriter.h"
-#include "eqvio/csv/CSVLine.h"
+#include "eqf_vio/VIOWriter.h"
+#include "eqf_vio/CSVLine.h"
 #include <filesystem>
 
 VIOWriter::VIOWriter(std::string outputDir) {

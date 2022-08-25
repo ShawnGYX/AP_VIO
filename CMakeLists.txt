@@ -43,6 +43,8 @@ set(AP_VIO_HEADER_FILES
     include/eqf_vio/dataStream.h
     include/eqf_vio/VIOWriter.h
     include/eqf_vio/aofstream.h
+    include/eqf_vio/CSVLine.h
+    include/eqf_vio/LoopTimer.h
     )
 set(AP_VIO_SOURCE_FILES
     src/VIOState.cpp
@@ -53,6 +55,7 @@ set(AP_VIO_SOURCE_FILES
     src/EqFMatrices.cpp
     src/dataStream.cpp
     src/VIOWriter.cpp
+    src/LoopTimer.cpp
 )
 
 add_library(ap_vio_lib

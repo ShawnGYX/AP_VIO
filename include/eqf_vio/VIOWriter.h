@@ -17,9 +17,9 @@
 
 #pragma once
 
-#include "eqvio/LoopTimer.h"
-#include "eqvio/VIOState.h"
-#include "eqvio/aofstream.h"
+#include "eqf_vio/LoopTimer.h"
+#include "eqf_vio/VIOState.h"
+#include "eqf_vio/aofstream.h"
 
 /** @brief A class to handle writing output for the VIO system
  *
