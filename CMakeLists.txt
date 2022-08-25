@@ -41,6 +41,8 @@ set(AP_VIO_HEADER_FILES
     include/eqf_vio/VisionMeasurement.h
     include/eqf_vio/EqFMatrices.h
     include/eqf_vio/dataStream.h
+    include/eqf_vio/VIOWriter.h
+    include/eqf_vio/aofstream.h
     )
 set(AP_VIO_SOURCE_FILES
     src/VIOState.cpp
@@ -50,6 +52,7 @@ set(AP_VIO_SOURCE_FILES
     src/IMUVelocity.cpp
     src/EqFMatrices.cpp
     src/dataStream.cpp
+    src/VIOWriter.cpp
 )
 
 add_library(ap_vio_lib
