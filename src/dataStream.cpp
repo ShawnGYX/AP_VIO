@@ -10,10 +10,10 @@ struct cam_msg
 
 struct mav_imu_message
 {
-    IMUVelocity imuVel = NULL;
-    mavlink_global_position_int_t GPS_RAW = NULL;
-    mavlink_global_position_int_t Global_pos= NULL;
-    mavlink_attitude_t att = NULL;
+    IMUVelocity imuVel;
+    mavlink_global_position_int_t GPS_RAW;
+    mavlink_global_position_int_t Global_pos;
+    mavlink_attitude_t att;
 };
 
 struct call_back_img_returned_values
@@ -141,10 +141,10 @@ VIOState dataStream::callbackImage(const cv::Mat image, const double ts)
 void dataStream::startThreads()
 {
     // setup the output directory
-    t0 = std::time(nullptr);
+    std::time_t t0 = std::time(nullptr);
     //Create a directory to store our output files 
     outputFolderStream << "EQVIO_output_" << (std::put_time(std::localtime(&t0), "%F_%T")).str() << "/";
-    fs::create_directory(outputFolderStream.str())
+    fs::create_directory(outputFolderStream.str());
 
     //setup the output writter for the apvio
     apvioOutputStream = outputFolderStream << "apvio_output/";
@@ -152,13 +152,13 @@ void dataStream::startThreads()
 
     // Set up recording file
     std::stringstream mav_imu_NameStream;
-    mav_imu_NameStream << outputFolderStream.str() << "mav_imu.csv"
+    mav_imu_NameStream << outputFolderStream.str() << "mav_imu.csv";
     mav_imu = std::ofstream(mav_imu_NameStream.str());
     mav_imu << "Timestamp (s), xgyro (rad/s), ygyro (rad/s), zgyro (rad/s), xacc (m/s/s), yacc (m/s/s), zacc (m/s/s), Mav Time (s), "
                << "Roll (rad), Pitch (rad), Yaw (rad), Lat (deg), Lon (deg), Alt (m), GLat (deg), GLon (deg), GAlt (m)" << std::endl;
 
     std::stringstream cam_NameStream;
-    cam_NameStream << outputFolderStream.str() << "cam.csv"
+    cam_NameStream << outputFolderStream.str() << "cam.csv";
     cam = std::ofstream(cam_NameStream.str());
     cam << "Timestamp (s), frame_num" << std::endl;
 
@@ -205,6 +205,7 @@ void dataStream::imu_recv_thread()
     mavlink_raw_imu_t raw_imu;
     IMUVelocity imuVel;
     mav_imu_message mavData;
+    bool att_flag, global_gps_flag, raw_gps_flag = false;
 
     while (read(fd, &b, 1) == 1)
     {
@@ -215,17 +216,20 @@ void dataStream::imu_recv_thread()
             if (msg.msgid == MAVLINK_MSG_ID_ATTITUDE)
             {
                 mavlink_msg_attitude_decode(&msg, &mavData.att);
+                att_flag = true;
             }
             else if (msg.msgid == MAVLINK_MSG_ID_GLOBAL_POSITION_INT)
             {
                 mavlink_msg_global_position_int_cov_decode(&msg, &mavData.Global_pos);
+                global_gps_flag = true;
             }
             else if (msg.msgid == MAVLINK_MSG_ID_GPS_RAW_INT)
             {
                 mavlink_msg_gps_raw_int_decode(&msg, &mavData.GPS_RAW);
+                raw_gps_flag = true;
             }
             //check to see if all fields of mavData have data in them
-            else if ((msg.msgid == MAVLINK_MSG_ID_RAW_IMU) and (mavData.GPS_RAW != NULL) and (mavData.Global_pos != NULL) and (mavData.att != NULL))
+            else if ((msg.msgid == MAVLINK_MSG_ID_RAW_IMU) and (att_flag) and (global_gps_flag) and (raw_gps_flag))
             {
                 last_msg_s = tnow;
 
