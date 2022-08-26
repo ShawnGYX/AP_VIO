@@ -1,6 +1,4 @@
 #include "eqf_vio/dataStream.h"
-#include <filesystem>
-namespace fs = std::filesystem;
 
 // Used for store frame messages
 struct cam_msg
@@ -135,12 +133,12 @@ void dataStream::startThreads()
     std::time_t t0 = std::time(nullptr);
     //Create a directory to store our output files 
     outputFolderStream << "EQVIO_output_" << (std::put_time(std::localtime(&t0), "%F_%T")) << "/";
-    fs::create_directory(outputFolderStream.str());
+    std::filesystem::create_directory(outputFolderStream.str());
 
     //setup the output writter for the apvio
     std::stringstream apvioOutputStream;
     apvioOutputStream << "EQVIO_output_" << (std::put_time(std::localtime(&t0), "%F_%T")) << "/" << "apvio_output/";
-    vioWriter(outputFolderStream.str());
+    vioWriter.VIOWriter(outputFolderStream.str());
 
     // Set up recording file
     std::stringstream mav_imu_NameStream;
