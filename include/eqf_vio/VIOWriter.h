@@ -47,7 +47,7 @@ class VIOWriter {
      * This method creates the output directory if it does not already exist, and then creates output files for the VIO
      * data to be written to. It also creates header rows in each of the files to make them human-readable.
      */
-    VIOWriter(std::string outputDir);
+    void StartVIOWriter(std::string outputDir);
 
     /** @brief Write the VIO states to the relevant files.
      *

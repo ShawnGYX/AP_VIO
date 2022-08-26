@@ -138,7 +138,7 @@ void dataStream::startThreads()
     //setup the output writter for the apvio
     std::stringstream apvioOutputStream;
     apvioOutputStream << "EQVIO_output_" << (std::put_time(std::localtime(&t0), "%F_%T")) << "/" << "apvio_output/";
-    vioWriter.VIOWriter(outputFolderStream.str());
+    vioWriter.StartVIOWriter(outputFolderStream.str());
 
     // Set up recording file
     std::stringstream mav_imu_NameStream;
