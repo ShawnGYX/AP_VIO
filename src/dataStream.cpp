@@ -11,7 +11,7 @@ struct cam_msg
 struct mav_imu_message
 {
     IMUVelocity imuVel;
-    mavlink_global_position_int_t GPS_RAW;
+    mavlink_gps_raw_int_t GPS_RAW;
     mavlink_global_position_int_t Global_pos;
     mavlink_attitude_t att;
 };
