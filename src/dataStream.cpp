@@ -1,4 +1,6 @@
 #include "eqf_vio/dataStream.h"
+#include <filesystem>
+namespace fs = std::filesystem;
 
 // Used for store frame messages
 struct cam_msg
@@ -87,12 +89,6 @@ VisionMeasurement convertGIFTFeatures(const std::vector<GIFT::Feature> &GIFTFeat
     return measurement;
 }
 
-// Start the IMU receiver and Camera capture threads
-dataStream::dataStream()
-{
-
-}
-
 // Kill the threads
 dataStream::~dataStream()
 {
@@ -107,7 +103,7 @@ dataStream::~dataStream()
 }
 
 // Callback function for images
-VIOState dataStream::callbackImage(const cv::Mat image, const double ts)
+call_back_img_returned_values dataStream::callbackImage(const cv::Mat image, const double ts)
 {
     //define the structure we will return to the main thread 
     call_back_img_returned_values returned_values; 
@@ -143,11 +139,11 @@ void dataStream::startThreads()
     // setup the output directory
     std::time_t t0 = std::time(nullptr);
     //Create a directory to store our output files 
-    outputFolderStream << "EQVIO_output_" << (std::put_time(std::localtime(&t0), "%F_%T")).str() << "/";
+    outputFolderStream << "EQVIO_output_" << (std::put_time(std::localtime(&t0), "%F_%T")) << "/";
     fs::create_directory(outputFolderStream.str());
 
     //setup the output writter for the apvio
-    apvioOutputStream = outputFolderStream << "apvio_output/";
+    std::stringstream apvioOutputStream = outputFolderStream << "apvio_output/";
     vioWriter(outputFolderStream.str());
 
     // Set up recording file
@@ -220,7 +216,7 @@ void dataStream::imu_recv_thread()
             }
             else if (msg.msgid == MAVLINK_MSG_ID_GLOBAL_POSITION_INT)
             {
-                mavlink_msg_global_position_int_cov_decode(&msg, &mavData.Global_pos);
+                mavlink_msg_global_position_int_decode(&msg, &mavData.Global_pos);
                 global_gps_flag = true;
             }
             else if (msg.msgid == MAVLINK_MSG_ID_GPS_RAW_INT)
