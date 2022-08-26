@@ -18,11 +18,6 @@ struct mav_imu_message
     mavlink_attitude_t att;
 };
 
-struct call_back_img_returned_values
-{
-    VIOState estimatedState;
-    VisionMeasurement visionData;
-};
 
 std::mutex mtx_filter;
 std::mutex mtx_cam_queue;
@@ -143,7 +138,8 @@ void dataStream::startThreads()
     fs::create_directory(outputFolderStream.str());
 
     //setup the output writter for the apvio
-    std::stringstream apvioOutputStream = outputFolderStream << "apvio_output/";
+    std::stringstream apvioOutputStream;
+    apvioOutputStream << "EQVIO_output_" << (std::put_time(std::localtime(&t0), "%F_%T")) << "/" << "apvio_output/";
     vioWriter(outputFolderStream.str());
 
     // Set up recording file

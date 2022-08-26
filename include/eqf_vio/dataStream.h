@@ -59,6 +59,12 @@ extern void comm_send_ch(mavlink_channel_t chan, uint8_t c);
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 #endif
 
+struct call_back_img_returned_values
+{
+    VIOState estimatedState;
+    VisionMeasurement visionData;
+};
+
 class dataStream{
     public:
     ~dataStream();
@@ -84,7 +90,7 @@ class dataStream{
     GIFT::PointFeatureTracker featureTracker;
     VIOFilter filter;
 
-    VIOState callbackImage(const cv::Mat image, const double ts);
+    call_back_img_returned_values callbackImage(const cv::Mat image, const double ts);
 
     private:
 
