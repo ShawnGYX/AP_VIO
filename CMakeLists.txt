@@ -29,6 +29,17 @@ if (USE_MARCH_NATIVE AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
     endif()
 endif()
 
+# Add LiePP
+message("LiePP is being used as a git submodule.")
+execute_process(COMMAND git submodule update --init --recursive --remote
+                WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/external/LiePP
+                RESULT_VARIABLE LiePP_SUBMOD_RESULT)
+if (${argparse_SUBMOD_RESULT})
+    message(FATAL_ERROR "LiePP could not be included as a submodule.")
+endif()
+set(LiePP_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/external/LiePP/include")
+
+
 add_subdirectory(libs)
 
 set(AP_VIO_HEADER_FILES
@@ -70,6 +81,7 @@ target_include_directories(ap_vio_lib
     PUBLIC include
     PUBLIC ${MODULE_INCLUDE_DIRS}
     PUBLIC ${EIGEN_INCLUDE_DIRS}
+    PUBLIC ${LiePP_INCLUDE_DIRS}
 )
 
 target_link_libraries(ap_vio_lib
@@ -96,5 +108,6 @@ target_include_directories(vio_ap
     PRIVATE include
     PRIVATE ${EIGEN_INCLUDE_DIRS}
     PRIVATE ${YAML_CPP_INCLUDE_DIR}
+    PRIVATE ${LiePP_INCLUDE_DIRS}
 )
 
