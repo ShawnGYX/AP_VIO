@@ -123,7 +123,8 @@ class aofstream {
      *
      * myAofstream << data1 << data2;
      */
-    aofstream& operator<<(const auto& data) {
+    template<typename T>
+    aofstream& operator<<(const T& data) {
         std::unique_lock lck(streamMutex);
         streamBuffer << data;
         buffer_cv.notify_one();

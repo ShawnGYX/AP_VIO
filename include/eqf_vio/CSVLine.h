@@ -225,6 +225,7 @@ template <typename Derived> CSVLine& operator<<(CSVLine& line, const Eigen::Quat
  * @return A reference to the csv line with the data emplaced.
  */
 inline CSVLine& operator<<(CSVLine& line, const liepp::SO3d& R) { return line << R.asQuaternion(); }
+inline CSVLine& operator<<(CSVLine& line, const SO3& R) { return line << R.asQuaternion(); }
 
 /** @brief Write a csv line to an SO(3) element
  *
@@ -246,6 +247,7 @@ inline CSVLine& operator>>(CSVLine& line, liepp::SO3d& R) {
  * @return A reference to the csv line with the data emplaced.
  */
 inline CSVLine& operator<<(CSVLine& line, const liepp::SE3d& P) { return line << P.x << P.R; }
+inline CSVLine& operator<<(CSVLine& line, const SE3& P) { return line << P.x() << P.R(); }
 /** @brief Write a csv line to an SE(3) element
  *
  * @param line The line containing the SE(3) data.
