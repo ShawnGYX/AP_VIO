@@ -19,7 +19,7 @@
 #include "eqf_vio/CSVLine.h"
 #include <filesystem>
 
-VIOWriter::VIOWriter(std::string outputDir) {
+VIOWriter::StartVIOWriter(std::string outputDir) {
 
     if (outputDir.back() != '/') {
         outputDir = outputDir + "/";
