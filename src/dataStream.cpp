@@ -135,6 +135,9 @@ void dataStream::startThreads()
     outputFolderStream << "EQVIO_output_" << (std::put_time(std::localtime(&t0), "%F_%T")) << "/";
     std::filesystem::create_directory(outputFolderStream.str());
 
+    outputFolderImageStream << "EQVIO_output_" << (std::put_time(std::localtime(&t0), "%F_%T")) << "/frames/";
+    std::filesystem::create_directory(outputFolderImageStream.str());
+
     //setup the output writter for the apvio
     std::stringstream apvioOutputStream;
     apvioOutputStream << "EQVIO_output_" << (std::put_time(std::localtime(&t0), "%F_%T")) << "/" << "apvio_output/";
@@ -190,6 +193,7 @@ void dataStream::stopThreads()
 
 void dataStream::imu_recv_thread()
 {
+    printf("imu recieving thread started.\n");
     uint8_t b;
     mavlink_message_t msg;
     mavlink_raw_imu_t raw_imu;
@@ -273,6 +277,7 @@ void dataStream::imu_recv_thread()
 
 void dataStream::cam_recv_thread()
 {
+    printf("cam recieving thread started.\n");
     // Start video capture, disable auto exposure tuning.
     cv::VideoCapture cap(0);
     cap.set(cv::CAP_PROP_AUTO_EXPOSURE, 0.25);
@@ -285,7 +290,7 @@ void dataStream::cam_recv_thread()
 
     for (;;)
     {
-        double t1 = get_time_seconds();
+        double t1 = get_time_seconds(); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!This needs to be more accurate !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         cap >> frame;
         if (frame.empty())
         {
@@ -332,6 +337,7 @@ void dataStream::cam_recv_thread()
 
 void dataStream::cam_proc_thread()
 {
+    printf("cam processing thread started.\n");
     while (true)
     {
         if (!cam_queue.empty())
@@ -354,6 +360,7 @@ void dataStream::cam_proc_thread()
 
 void dataStream::cam_save_thread()
 {
+    printf("cam save thread started.\n");
     int image_number = 0;
     while (true)
     {
@@ -363,11 +370,13 @@ void dataStream::cam_save_thread()
             cam_msg tobeSave = cam_save_queue.back();
             mtx_cam_save_queue.unlock(); 
             //create the image name in the correct directory
-            std::string dir(outputFolderStream.str()+"frames/frame_"+std::to_string(image_number)+".jpg");
+            printf("starting to Saving image.\n");
+            std::string dir(outputFolderImageStream.str()+"frame_"+std::to_string(image_number)+".jpg");
             //write the image 
             cv::imwrite(dir, tobeSave.img);
+            printf("saved image\n");
             //write to cam.csv
-            cam << tobeSave.t_now << "," << image_number << "," << std::endl;
+            cam << tobeSave.t_now << "," << image_number << std::endl;
             image_number++;
         }
         usleep(100);
@@ -377,6 +386,7 @@ void dataStream::cam_save_thread()
 
 void dataStream::imu_proc_thread()
 {
+    printf("imu processing thread started.\n");
     while (true)
     {
         // If there's message in the queue, read the last one and pass into the filter.

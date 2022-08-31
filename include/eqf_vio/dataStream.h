@@ -81,6 +81,7 @@ class dataStream{
     std::ofstream cam;
     VIOWriter vioWriter;
     std::stringstream outputFolderStream;
+    std::stringstream outputFolderImageStream;
     bool indoor_lighting;
     int fd;
 
