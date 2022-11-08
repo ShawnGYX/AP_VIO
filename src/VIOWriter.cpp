@@ -15,8 +15,8 @@
     along with EqVIO.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "eqf_vio/VIOWriter.h"
-#include "eqf_vio/CSVLine.h"
+#include "eqvio/VIOWriter.h"
+#include "eqvio/csv/CSVLine.h"
 #include <filesystem>
 
 void VIOWriter::StartVIOWriter(std::string outputDir) {
@@ -30,58 +30,63 @@ void VIOWriter::StartVIOWriter(std::string outputDir) {
     }
 
     IMUStateFile.open(outputDir + "IMUState.csv");
-    // cameraFile.open(outputDir + "camera.csv");
-    // biasFile.open(outputDir + "bias.csv");
-    // pointsFile.open(outputDir + "points.csv");
+    cameraFile.open(outputDir + "camera.csv");
+    biasFile.open(outputDir + "bias.csv");
+    pointsFile.open(outputDir + "points.csv");
     featuresFile.open(outputDir + "features.csv");
     timingFile.open(outputDir + "timing.csv");
 
+    landmarkErrorFile.open(outputDir + "landmarkError.csv");
+    neesFile.open(outputDir + "nees.csv");
+
     IMUStateFile << "time, px, py, pz, qw, qx, qy, qz, vx, vy, vz\n";
-    // cameraFile << "time, px, py, pz, qw, qx, qy, qz\n";
-    // biasFile << "time, bias_gyr_x, bias_gyr_y, bias_gyr_z, bias_acc_x, bias_acc_y, bias_acc_z\n";
-    // pointsFile << "time, p1id, p1x, p1y, p1z, ...\n";
+    cameraFile << "time, px, py, pz, qw, qx, qy, qz\n";
+    biasFile << "time, bias_gyr_x, bias_gyr_y, bias_gyr_z, bias_acc_x, bias_acc_y, bias_acc_z\n";
+    pointsFile << "time, p1id, p1x, p1y, p1z, ...\n";
     featuresFile << "time, z1id, z1x, z1y, ...\n";
+    landmarkErrorFile << "time, lm_err_1, lm_err_2, ...\n";
+    neesFile << "time, NEES\n";
 }
 
 void VIOWriter::writeStates(const double& stamp, const VIOState& xi) {
     { // Write the IMU pose to file
         IMUStateFile << std::setprecision(20) << stamp << ", " << std::setprecision(6);
         CSVLine line;
-        line << xi.pose << xi.velocity;
+        line << xi.sensor.pose << xi.sensor.velocity;
         IMUStateFile << line << '\n';
     }
 
-    // { // Write the Camera offset to file
-    //     cameraFile << std::setprecision(20) << stamp << ", " << std::setprecision(6);
-    //     CSVLine line;
-    //     line << xi.cameraOffset;
-    //     cameraFile << line << '\n';
-    // }
+    { // Write the Camera offset to file
+        cameraFile << std::setprecision(20) << stamp << ", " << std::setprecision(6);
+        CSVLine line;
+        line << xi.sensor.cameraOffset;
+        cameraFile << line << '\n';
+    }
 
-    // { // Write the biases to file
-    //     biasFile << std::setprecision(20) << stamp << ", " << std::setprecision(6);
-    //     CSVLine line;
-    //     line << xi.inputBias;
-    //     biasFile << line << '\n';
-    // }
+    { // Write the biases to file
+        biasFile << std::setprecision(20) << stamp << ", " << std::setprecision(6);
+        CSVLine line;
+        line << xi.sensor.inputBias;
+        biasFile << line << '\n';
+    }
 
-    // { // Write the points in world frame to file
-    //     pointsFile << std::setprecision(20) << stamp << ", " << std::setprecision(6);
-    //     CSVLine line;
-    //     const liepp::SE3d PC = xi.pose * xi.cameraOffset;
-    //     for (const auto& q : xi.cameraLandmarks) {
-    //         line << q.id << PC * q.p;
-    //     }
-    //     pointsFile << line << '\n';
-    // }
+    { // Write the points in world frame to file
+        pointsFile << std::setprecision(20) << stamp << ", " << std::setprecision(6);
+        CSVLine line;
+        const liepp::SE3d PC = xi.sensor.pose * xi.sensor.cameraOffset;
+        for (const auto& q : xi.cameraLandmarks) {
+            line << q.id << PC * q.p;
+        }
+        pointsFile << line << '\n';
+    }
 }
 
 void VIOWriter::writeFeatures(const VisionMeasurement& y) {
     // Write the features to file
     featuresFile << std::setprecision(20) << y.stamp << ", " << std::setprecision(6);
     CSVLine line;
-    for (const Point3d& pt : y.bearings) {
-        line << pt.id << pt.p;
+    for (const auto& [id, z] : y.camCoordinates) {
+        line << id << z;
     }
     featuresFile << line << '\n';
 }
@@ -104,4 +109,29 @@ void VIOWriter::writeTiming(const LoopTimer::LoopTimingData& timingData) {
         line << timing.count();
     }
     timingFile << line << '\n';
+}
+
+void VIOWriter::writeNEES(const double& stamp, const double& NEES) {
+    neesFile << std::setprecision(20) << stamp << ", " << std::setprecision(6);
+    CSVLine line;
+    line << NEES;
+    neesFile << line << '\n';
+}
+
+void VIOWriter::writeLandmarkError(const double& stamp, const VIOState& trueState, const VIOState& estState) {
+    landmarkErrorFile << std::setprecision(20) << stamp << ", " << std::setprecision(6);
+    CSVLine line;
+
+    for (const Landmark& lm : trueState.cameraLandmarks) {
+        auto it = std::find_if(
+            estState.cameraLandmarks.begin(), estState.cameraLandmarks.end(),
+            [&lm](const Landmark& lmEst) { return lmEst.id == lm.id; });
+        if (it == estState.cameraLandmarks.end()) {
+            line << std::nan("");
+        } else {
+            line << (it->p - lm.p).norm();
+        }
+    }
+
+    landmarkErrorFile << line << '\n';
 }
