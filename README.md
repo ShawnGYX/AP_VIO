@@ -29,12 +29,12 @@ cd AP_VIO
 mkdir build
 cd build
 cmake ..
-make -j2
+make 
 ```
 
 ### Known Issue
 
-- 
+- There is a known issue with data logging due to conflict between mutex locks in aofstream.h
 
 ## Preparations
 
@@ -42,7 +42,7 @@ make -j2
 We use a checkerboard to calibrate the camera. Download the tools from ```https://github.com/STR-ANU/VIO-Tools```.
 
 ### Camera-IMU Calibration
-
+We use Kalibr to calibrate camera to IMU. Available at: https://github.com/ethz-asl/kalibr. Can also be used for Camera calibration
 
 ## Usage Instructions
 
@@ -54,6 +54,6 @@ To start VIO on the onboard computer, go to AP_VIO folder, execute the following
 ./build/vio_ap <config_file> <serial port>
 ```
 
-for example: ``` ./build/vio_ap EQVIO_config.yaml /dev/serial0```.
+for example: ``` ./build/vio_ap EQVIO_config_simple.yaml /dev/serial0```.
 
 
