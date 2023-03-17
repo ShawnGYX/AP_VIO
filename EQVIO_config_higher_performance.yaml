@@ -1,0 +1,76 @@
+GIFT:
+  intrinsicsFile: undistort.yaml
+  equaliseImageHistogram: true
+  featureDist: 80.0
+  featureSearchThreshold: 0.7
+  maxError: 50.0
+  maxFeatures: 25
+  maxLevel: 3
+  minHarrisQuality: 0.1
+  ransacParams:
+    inlierThreshold: 0.001
+    maxIterations: 20
+    minDataPoints: 10
+    minInliers: 30
+  trackedFeatureDist: 10.0
+  winSize: 17
+eqf:
+  initialValue:
+    sceneDepth: 15
+    cameraOffset:
+      - xw
+      - 0.0968719
+      - 0.00380172
+      - 0.19046751
+      - 0.6558837
+      - 0.2084059
+      - 0.1904537
+      - 0.7000792
+  initialVariance:
+    attitude: 0.01
+    biasAcc: 1e-2
+    biasGyr: 1e-2
+    cameraAttitude: 1.0e-02
+    cameraPosition: 1.0e-02
+    point: 10.0
+    position: 0.1
+    velocity: 1e-6
+    pointDepth: 1.0
+  measurementNoise:
+    feature: 1.0
+    featureOutlierAbs: 5.0
+    featureOutlierProb: 0.1
+    featureRetention: 0.2
+  processVariance:
+    attitude: 1e-3
+    biasAcc: 1e-05
+    biasGyr: 1e-05
+    cameraAttitude: 1e-6
+    cameraPosition: 1e-6
+    point: 0.01
+    position: 0.015
+    velocity: 0.01
+  settings:
+    coordinateChoice: InvDepth
+    fastRiccati: true
+    useDiscreteInnovationLift: false
+    useDiscreteVelocityLift: true
+    useEquivariantOutput: true
+    useFeaturePredictions: false
+    useInnovationLift: true
+    useMedianDepth: true
+    removeLostLandmarks: true 
+  velocityNoise:
+    acc: 7.8e-4
+    accBias: 2.2e-4
+    gyr: 6.5e-5
+    gyrBias: 1.8e-5
+main:
+  limitRate: 0.0
+  startTime: 0.0
+  writeState: true
+  indoorLighting: false
+  cameraXResolution: 640
+  cameraYResolution: 420
+  cameraFrameRate: 20
+  saveImages: false

@@ -1,0 +1,6 @@
+[submodule "external/LiePP"]
+	path = external/LiePP
+	url = https://github.com/pvangoor/LiePP.git
+[submodule "external/GIFT"]
+	path = external/GIFT
+	url = https://github.com/pvangoor/GIFT.git

@@ -1,22 +1,32 @@
-#include "eqf_vio/dataStream.h"
+#include "eqvio/dataStream.h"
 
 // Used for store frame messages
 struct cam_msg
 {
-    cam_msg(double t, cv::Mat i) : t_now(t), img(i) {}
+    cam_msg(double t, cv::Mat i, double e) : t_now(t), img(i), exposure(e) {}
     double t_now;
     cv::Mat img;
+    double exposure;
 };
+
+struct mav_imu_message
+{
+    IMUVelocity imuVel;
+    mavlink_gps_raw_int_t GPS_RAW;
+    mavlink_global_position_int_t Global_pos;
+    mavlink_attitude_t att;
+};
+
 
 std::mutex mtx_filter;
 std::mutex mtx_cam_queue;
-std::mutex mtx_imu_queue;
 std::mutex mtx_cam_save_queue;
+std::mutex mtx_imu_queue;
 
 // Passing messages between recv and proc threads
 std::queue<cam_msg> cam_queue;
-std::queue<IMUVelocity> imu_queue;
 std::queue<cam_msg> cam_save_queue;
+std::queue<IMUVelocity> imu_queue;
 
 static mavlink_status_t mav_status;
 static uint8_t target_system;
@@ -57,26 +67,14 @@ static double get_time_seconds()
     return (tp.tv_sec + (tp.tv_usec * 1.0e-6));
 }
 
-VisionMeasurement convertGIFTFeatures(const std::vector<GIFT::Feature> &GIFTFeatures, const double &stamp)
-{
+VisionMeasurement convertGIFTFeatures(const std::vector<GIFT::Feature>& GIFTFeatures, const double& stamp) {
     VisionMeasurement measurement;
     measurement.stamp = stamp;
-    measurement.numberOfBearings = GIFTFeatures.size();
-    measurement.bearings.resize(GIFTFeatures.size());
-    std::transform(GIFTFeatures.begin(), GIFTFeatures.end(), measurement.bearings.begin(), [](const GIFT::Feature &f)
-                   {
-                       Point3d pt;
-                       pt.p = f.sphereCoordinates();
-                       pt.id = f.idNumber;
-                       return pt;
-                   });
+    std::transform(
+        GIFTFeatures.begin(), GIFTFeatures.end(),
+        std::inserter(measurement.camCoordinates, measurement.camCoordinates.begin()),
+        [](const GIFT::Feature& f) { return std::make_pair(f.idNumber, f.camCoordinatesEigen()); });
     return measurement;
-}
-
-// Start the IMU receiver and Camera capture threads
-dataStream::dataStream()
-{
-
 }
 
 // Kill the threads
@@ -93,53 +91,58 @@ dataStream::~dataStream()
 }
 
 // Callback function for images
-VIOState dataStream::callbackImage(const cv::Mat image, const double ts)
+call_back_img_returned_values dataStream::callbackImage(const cv::Mat image, const double ts)
 {
-    // Undistort the image
-    cv::Mat undistorted = image.clone();
-    cv::Size imageSize = image.size();
-    cv::Mat mapX = cv::Mat(imageSize, CV_32FC1);
-    cv::Mat mapY = cv::Mat(imageSize, CV_32FC1);
-    cv::Mat iD = cv::Mat::eye(3, 3, CV_32F);
-    cv::fisheye::initUndistortRectifyMap(K_coef, D_coef, iD, K_coef, imageSize, CV_32FC1, mapX, mapY);
-    cv::remap(image, undistorted, mapX, mapY, cv::INTER_LINEAR);
+    //define the structure we will return to the main thread 
+    call_back_img_returned_values returned_values; 
 
-    // Run GIFT on the undistorted image
-    featureTracker.processImage(undistorted);
-    const std::vector<GIFT::Feature> features = featureTracker.outputFeatures();
-    std::cout << "New image received, with " << features.size() << " features." << std::endl;
-    const VisionMeasurement visionData = convertGIFTFeatures(features, ts);
-    internalFile << visionData << std::endl;
+    // Run GIFT on the undistorted image to get GIFT features
+    loopTimer.startTiming("features");
+    // const VisionMeasurement& featurePrediction = filter.getFeaturePredictions(camera, ts);
+    // featureTracker.processImage(image, featurePrediction.ocvCoordinates());
+
+    featureTracker.processImage(image);
+
+    //convert GIFT features to a different type
+    returned_values.visionData = convertGIFTFeatures(featureTracker.outputFeatures(), ts);
+    returned_values.visionData.cameraPtr = camera;
+    loopTimer.endTiming("features");
+
+    mtx_filter.lock();
 
     // Pass the feature data to the filter
-    mtx_filter.lock();
-    filter.processVisionData(visionData);
+    loopTimer.startTiming("total vision update");
+    filter.processVisionData(returned_values.visionData);
+    loopTimer.endTiming("total vision update");
     // Request the system state from the filter
-    VIOState estimatedState = filter.stateEstimate();
+    returned_values.estimatedState = filter.stateEstimate();
     mtx_filter.unlock();
-    send_ready = true;
 
-    return estimatedState;
+    return returned_values;
 }
 
 // Start the IMU receiver and Camera capture threads
 void dataStream::startThreads()
 {
-    // Set up output file, add header
+    // setup the output directory
     std::time_t t0 = std::time(nullptr);
-    // fs::create_directory("")
-    std::stringstream outputFileNameStream;
-    outputFileNameStream << "EQF_VIO_output_" << std::put_time(std::localtime(&t0), "%F_%T") << ".csv";
-    outputFile = std::ofstream(outputFileNameStream.str());
-    outputFile << "time, tx, ty, tz, qw, qx, qy, qz, vx, vy, vz, N, "
-               << "p1id, p1x, p1y, p1z, ..., ..., ..., ..., pNid, pNx, pNy, pNz" << std::endl;
+    //Create a directory to store our output files 
+    outputFolderStream << "EQVIO_output_" << (std::put_time(std::localtime(&t0), "%F_%T")) << "/";
+    std::filesystem::create_directory(outputFolderStream.str());
+
+    //setup the output writter for the apvio
+    std::stringstream apvioOutputStream;
+    apvioOutputStream << "EQVIO_output_" << (std::put_time(std::localtime(&t0), "%F_%T")) << "/" << "apvio_output/";
+    vioWriter.StartVIOWriter(apvioOutputStream.str());
 
     // Set up recording file
-    std::stringstream internalFileNameStream;
-    internalFileNameStream << "EQF_VIO_internal_" << std::put_time(std::localtime(&t0), "%F_%T") << ".csv";
-    internalFile = std::ofstream(internalFileNameStream.str());
-    internalFile << "time, gyro_x, gyro_y, gyro_z, accel_x, accel_y, accel_z, N, "
-                 << "p1id, p1x, p1y, p1z, ..., ..., ..., ..., pNid, pNx, pNy, pNz" << std::endl;
+    std::stringstream mav_imu_NameStream;
+    mav_imu_NameStream << outputFolderStream.str() << "mav_imu.csv";
+    mav_imu = std::ofstream(mav_imu_NameStream.str());
+    mav_imu << "Timestamp (s), xgyro (rad/s), ygyro (rad/s), zgyro (rad/s), xacc (m/s/s), yacc (m/s/s), zacc (m/s/s), Mav Time (s), "
+               << "Roll (rad), Pitch (rad), Yaw (rad), Lat (deg), Lon (deg), Alt (m), GLat (deg), GLon (deg), GAlt (m)" << std::endl;
+
+
 
     // Start the threads
     imu_recv_th = std::thread(&dataStream::imu_recv_thread, this);
@@ -150,7 +153,15 @@ void dataStream::startThreads()
     // printf("Start receiving camera frames.\n");
     cam_proc_th = std::thread(&dataStream::cam_proc_thread, this);
     // printf("Start processing camera frames.\n");
-    cam_save_th = std::thread(&dataStream::cam_save_thread, this);
+    if (save_images)
+    {
+        std::stringstream cam_NameStream;
+        cam_NameStream << outputFolderStream.str() << "cam.csv";
+        cam = std::ofstream(cam_NameStream.str());
+        cam << "Timestamp (s), frame_num, exposure" << std::endl;
+        std::filesystem::create_directory(outputFolderStream.str()+"frames/");
+        cam_save_th = std::thread(&dataStream::cam_save_thread, this);
+    }
     printf("All threads initialized.\n");
 }
 
@@ -162,13 +173,13 @@ void dataStream::stopThreads()
     {
         imu_recv_th.join();
     }
-    if (cam_recv_th.joinable())
-    {
-        cam_recv_th.join();
-    }
     if (imu_proc_th.joinable())
     {
         imu_proc_th.join();
+    }
+    if (cam_recv_th.joinable())
+    {
+        cam_recv_th.join();
     }
     if (cam_proc_th.joinable())
     {
@@ -183,41 +194,101 @@ void dataStream::imu_recv_thread()
     mavlink_message_t msg;
     mavlink_raw_imu_t raw_imu;
     IMUVelocity imuVel;
+    mav_imu_message mavData;
+    bool att_flag, global_gps_flag, raw_gps_flag, init_message = false;
+    int mavlink_messgaes_popped = 0;
 
     while (read(fd, &b, 1) == 1)
     {
         if (mavlink_parse_char(MAVLINK_COMM_0, b, &msg, &mav_status))
         {
             double tnow = get_time_seconds();
-            if (msg.msgid == MAVLINK_MSG_ID_RAW_IMU)
+            //go through and check each message ID. then unpack the data and save it to the mavData structure 
+            if (msg.msgid == MAVLINK_MSG_ID_ATTITUDE)
+            {
+                mavlink_msg_attitude_decode(&msg, &mavData.att);
+                att_flag = true;
+                //std::cout << "The attitude value is" << mavData.att.roll << "\t" << mavData.att.pitch << "\t" << mavData.att.yaw << std::endl;
+                if ((mavData.att.roll==0) and (mavData.att.pitch==0) and (mavData.att.yaw==0))
+                {
+                    att_flag = false;
+                }
+            }
+            else if (msg.msgid == MAVLINK_MSG_ID_GLOBAL_POSITION_INT)
+            {
+                mavlink_msg_global_position_int_decode(&msg, &mavData.Global_pos);
+                global_gps_flag = true;
+                //std::cout << "The GPS estimate value is" << mavData.Global_pos.lat << "\t" << mavData.Global_pos.lon << "\t" << mavData.Global_pos.alt << std::endl;
+                if ((mavData.Global_pos.lat==0) and (mavData.Global_pos.lon==0) and (mavData.Global_pos.alt==0))
+                {
+                    global_gps_flag = false;
+                }
+            }
+            else if (msg.msgid == MAVLINK_MSG_ID_GPS_RAW_INT)
+            {
+                mavlink_msg_gps_raw_int_decode(&msg, &mavData.GPS_RAW);
+                raw_gps_flag = true;
+                //std::cout << "The GPS raw value is" << mavData.GPS_RAW.lat << "\t" << mavData.GPS_RAW.lon << "\t" << mavData.GPS_RAW.alt << std::endl;
+                if ((mavData.GPS_RAW.lat==0) and (mavData.GPS_RAW.lon==0) and (mavData.GPS_RAW.alt==0))
+                {
+                    raw_gps_flag = false;
+                }
+            }
+
+            //check to see if all fields of mavData have data in them
+            else if ((msg.msgid == MAVLINK_MSG_ID_RAW_IMU) and (att_flag) and (global_gps_flag) and (raw_gps_flag))
             {
                 last_msg_s = tnow;
 
                 // Decode the mavlink msg and store in the filter format
                 mavlink_msg_raw_imu_decode(&msg, &raw_imu);
                 imuVel.stamp = tnow;
-                imuVel.omega << raw_imu.xgyro*gyro_factor, raw_imu.ygyro*gyro_factor, raw_imu.zgyro*gyro_factor;
-                imuVel.accel << raw_imu.xacc*acc_factor, raw_imu.yacc*acc_factor, raw_imu.zacc*acc_factor;
+                imuVel.gyr << raw_imu.xgyro*gyro_factor, raw_imu.ygyro*gyro_factor, raw_imu.zgyro*gyro_factor;
+                imuVel.acc << raw_imu.xacc*acc_factor, raw_imu.yacc*acc_factor, raw_imu.zacc*acc_factor;
 
-                internalFile << std::setprecision(20) << tnow << std::setprecision(5) << ", ";
-                internalFile << imuVel.omega.x() << ", " << imuVel.omega.y() << ", " << imuVel.omega.z() << ", ";
-                internalFile << imuVel.accel.x() << ", " << imuVel.accel.y() << ", " << imuVel.accel.z() << ", " << std::endl;
+                mavData.imuVel = imuVel;
+
+                //write to our csv with the most up to data data
+                mav_imu << std::setprecision(20) << tnow << std::setprecision(10) << ", ";
+                mav_imu << mavData.imuVel.gyr.x() << "," << mavData.imuVel.gyr.y() << "," << mavData.imuVel.gyr.z() << ","; 
+                mav_imu << mavData.imuVel.acc.x() << "," << mavData.imuVel.acc.y() << "," << mavData.imuVel.acc.z() << ","; 
+                mav_imu << raw_imu.time_usec*1e6 << ",";
+                mav_imu << mavData.att.roll << "," << mavData.att.pitch << "," << mavData.att.yaw << ",";
+                mav_imu << mavData.Global_pos.lat*1e-7 << "," << mavData.Global_pos.lon*1e-7 << "," << mavData.Global_pos.alt*1e-3 << ",";
+                mav_imu << mavData.GPS_RAW.lat*1e-7 << "," << mavData.GPS_RAW.lon*1e-7 << "," << mavData.GPS_RAW.alt*1e-3 << "," << std::endl;
+
                 // Push the message to the queue.
                 // The maximum size of the queue is 10.
                 mtx_imu_queue.lock();
                 imu_queue.push(imuVel);
                 mtx_imu_queue.unlock();
-                if (imu_queue.size() > 10)
+                if (imu_queue.size() > 60)
                 {
                     imu_queue.pop();
+                    if (display_popped)
+                    {
+                        mavlink_messgaes_popped++;
+                        std::cout << std::ios_base::fixed;
+                        std::cout << "have popped " << mavlink_messgaes_popped << " mavlink messages at time" << tnow << std::endl;
+                    }
                 }
+            }
+            if (att_flag and global_gps_flag and raw_gps_flag and !init_message)
+            {
+                printf("Succesfully recieving all channels of ArduPilot data\n");
+                init_message = true;
             }
             if (target_system == 0 && msg.msgid == MAVLINK_MSG_ID_HEARTBEAT)
             {
                 printf("Got system ID %u\n", msg.sysid);
+                printf("now recording data\n");
                 target_system = msg.sysid;
                 // Request IMU messages at 200Hz
                 mav_set_message_rate(MAVLINK_MSG_ID_RAW_IMU, 200);
+                // request ground truth data at 20Hz
+                mav_set_message_rate(MAVLINK_MSG_ID_GLOBAL_POSITION_INT, 20);
+                mav_set_message_rate(MAVLINK_MSG_ID_GPS_RAW_INT, 20);
+                mav_set_message_rate(MAVLINK_MSG_ID_ATTITUDE, 20);
             }
         }
     }
@@ -229,17 +300,41 @@ void dataStream::imu_recv_thread()
     }
 }
 
+void dataStream::imu_proc_thread()
+{
+    while (true)
+    {
+        // If there's message in the queue, read the last one and pass into the filter.
+        if (!imu_queue.empty())
+        {
+            mtx_imu_queue.lock();
+            IMUVelocity tobeProc = imu_queue.front();
+            imu_queue.pop();
+            mtx_imu_queue.unlock();
+            mtx_filter.lock();
+            this->filter.processIMUData(tobeProc);
+            mtx_filter.unlock();
+        }
+        usleep(100);
+    }
+}
+
 void dataStream::cam_recv_thread()
 {
     // Start video capture, disable auto exposure tuning.
     cv::VideoCapture cap(0);
     cap.set(cv::CAP_PROP_AUTO_EXPOSURE, 0.25);
     cap.set(cv::CAP_PROP_EXPOSURE, 1.7);
+    cap.set(CV_CAP_PROP_FRAME_WIDTH, cameraXResolution);
+    cap.set(CV_CAP_PROP_FRAME_HEIGHT, cameraYResolution);
+    cap.set(CV_CAP_PROP_FPS, cameraFrameRate);
     cv::Mat frame;
     float exposure;  
     if ( indoor_lighting ){ exposure =0.3; } else{ exposure = 0.001; }
 
     float gain = 1e-4;
+    int popped_images_processing_queue = 0;
+    int popped_images_save_queue = 0;
 
     for (;;)
     {
@@ -253,20 +348,32 @@ void dataStream::cam_recv_thread()
 
         // Add new message to the queue. The size limit is 2.
         mtx_cam_queue.lock();
-        cam_queue.push(cam_msg(t1, frame));
+        cam_queue.push(cam_msg(t1, frame,exposure));
         mtx_cam_queue.unlock();
-        if (cam_queue.size() > 2)
+        if (cam_queue.size() > 20)
         {
             cam_queue.pop();
+            if (display_popped)
+            {
+                popped_images_processing_queue++;
+                std::cout << std::fixed << "have popped: " << popped_images_processing_queue << " images in processing queue at time" << t1 << std::endl;
+            }
         }
-        mtx_cam_save_queue.lock();
-        cam_save_queue.push(cam_msg(t1,frame));
-        mtx_cam_save_queue.unlock();
-        if (cam_save_queue.size() >2)
+        if (save_images)
         {
-            cam_save_queue.pop();
+            mtx_cam_save_queue.lock();
+            cam_save_queue.push(cam_msg(t1,frame,exposure));
+            mtx_cam_save_queue.unlock();
+            if (cam_save_queue.size() >200)
+            {
+                cam_save_queue.pop();
+                if (display_popped)
+                {
+                    popped_images_save_queue++;
+                    std::cout << std::fixed << "have popped: " << popped_images_save_queue << " images in save queue at time" << t1 << std::endl;
+                }
+            }
         }
-
 
         // Adjust camera exposure
         cap.set(cv::CAP_PROP_EXPOSURE, exposure);
@@ -281,9 +388,9 @@ void dataStream::cam_recv_thread()
         {
             exposure = 0.7;
         }
-        else if (exposure <= 0.0)
+        else if (exposure <= 0.00025)
         {
-            exposure = 1e-6;
+            exposure = 0.00025;
         }
     }
 }
@@ -294,16 +401,24 @@ void dataStream::cam_proc_thread()
     {
         if (!cam_queue.empty())
         {
+            loopTimer.startLoop();
+            loopTimer.startTiming("total");
             mtx_cam_queue.lock();
-            cam_msg tobeProc = cam_queue.back();
+            cam_msg tobeProc = cam_queue.front();
+            cam_queue.pop();
             mtx_cam_queue.unlock();
-            VIOState stateEstimate = callbackImage(tobeProc.img, tobeProc.t_now);
+            call_back_img_returned_values processed_filtered_values = callbackImage(tobeProc.img, tobeProc.t_now);
 
             // Send VP message to AutoPilot
-            update_vp_estimate(stateEstimate);
-            // Record output data
-            outputFile << std::setprecision(20) << filter.getTime() << std::setprecision(5) << ", "
-                       << stateEstimate << std::endl;
+            update_vp_estimate(processed_filtered_values.estimatedState);
+            loopTimer.endTiming("total");
+
+            loopTimer.startTiming("write output");
+            vioWriter.writeStates(filter.getTime(), processed_filtered_values.estimatedState);
+            vioWriter.writeFeatures(processed_filtered_values.visionData);
+            loopTimer.endTiming("write output");
+
+            vioWriter.writeTiming(loopTimer.getLoopTimingData());
         }
         usleep(100);
     }
@@ -311,38 +426,24 @@ void dataStream::cam_proc_thread()
 
 void dataStream::cam_save_thread()
 {
+    cam.precision(5);
+    cam.setf(std::ios_base::fixed);
+    int image_number = 0;
     while (true)
     {
         if (!cam_save_queue.empty())
         {
             mtx_cam_save_queue.lock();
-            cam_msg tobeSave = cam_save_queue.back();
-            mtx_cam_save_queue.unlock();
-            std::string tn = std::to_string(tobeSave.t_now);
-            std::string ext(".jpg");
-            std::string dir("image/");
-            tn.append(ext);
-            dir.append(tn);
+            cam_msg tobeSave = cam_save_queue.front();
+            cam_save_queue.pop();
+            mtx_cam_save_queue.unlock(); 
+            //create the image name in the correct directory
+            std::string dir(outputFolderStream.str()+"frames/frame_"+std::to_string(image_number)+".jpg");
+            //write the image 
             cv::imwrite(dir, tobeSave.img);
-        }
-        usleep(100);
-    }
-}
-
-
-void dataStream::imu_proc_thread()
-{
-    while (true)
-    {
-        // If there's message in the queue, read the last one and pass into the filter.
-        if (!imu_queue.empty())
-        {
-            mtx_imu_queue.lock();
-            IMUVelocity tobeProc = imu_queue.back();
-            mtx_imu_queue.unlock();
-            mtx_filter.lock();
-            this->filter.processIMUData(tobeProc);
-            mtx_filter.unlock();
+            //write to cam.csv
+            cam << tobeSave.t_now << "," << image_number << "," << tobeSave.exposure << std::endl;
+            image_number++;
         }
         usleep(100);
     }
@@ -370,9 +471,9 @@ void dataStream::update_vp_estimate(const VIOState estimatedState)
     }
 
     // Load estimates from the filter
-    const Eigen::Quaterniond &attitude = estimatedState.pose.R().asQuaternion();
-    const Eigen::Vector3d &position = estimatedState.pose.x();
-    const Eigen::Vector3d &vel = estimatedState.velocity;
+    const Eigen::Quaterniond &attitude = estimatedState.sensor.pose.R.asQuaternion();
+    const Eigen::Vector3d &position = estimatedState.sensor.pose.x;
+    const Eigen::Vector3d &vel = estimatedState.sensor.velocity;
 
     Eigen::Vector3d euler = attitude.toRotationMatrix().eulerAngles(0, 1, 2);
     float roll = euler[0];

@@ -1,13 +1,14 @@
 #include "../include/mavlink/mavlink_types.h"
-#include "eqf_vio/IMUVelocity.h"
-#include "eqf_vio/VIOFilter.h"
-#include "eqf_vio/VIOFilterSettings.h"
-#include "eqf_vio/VisionMeasurement.h"
-#include "eqf_vio/dataStream.h"
+#include "eqvio/mathematical/IMUVelocity.h"
+#include "eqvio/VIOFilter.h"
+#include "eqvio/VIOFilterSettings.h"
+#include "eqvio/mathematical/VisionMeasurement.h"
+#include "eqvio/dataStream.h"
 #include "GIFT/PointFeatureTracker.h"
 #include "GIFT/Visualisation.h"
 #include "opencv2/highgui/highgui.hpp"
 #include "yaml-cpp/yaml.h"
+#include "eqvio/LoopTimer.h"
 
 static int dev_fd = -1;
 
@@ -87,31 +88,56 @@ int main(int argc, const char *argv[])
     }
     const YAML::Node eqf_vioConfig = YAML::LoadFile(EQVIO_config_fname);
 
-    // Initialize the feature tracker and the filter
-    const std::string camera_intrinsics_fname = eqf_vioConfig["GIFT"]["intrinsicsFile"].as<std::string>();
-    if (!std::ifstream(camera_intrinsics_fname).good())
-    {
-        std::stringstream ess;
-        ess << "Couldn't open the GIFT camera intrinsics file: "<< camera_intrinsics_fname;
-        throw std::runtime_error(ess.str());
-    }
-    GIFT::PinholeCamera camera = GIFT::PinholeCamera(cv::String(camera_intrinsics_fname));    
+    loopTimer.initialise({"correction", "features", "preprocessing", "propagation", "total", "total vision update", "write output"});
 
+    //find the camera intrensics file and configure the camera pointer
+    const std::string cameraFileName = EQVIO_config_fname.substr(0, EQVIO_config_fname.rfind("/")) + "/undistort.yaml";
+    assert(std::filesystem::exists(cameraFileName));
+
+    cv::FileStorage fs(cameraFileName, cv::FileStorage::READ);
+    cv::Mat K, dist;
+
+    fs["camera_matrix"] >> K;
+    fs["dist_coeffs"] >> dist;
+
+    std::array<double, 4> distVec;
+    for (int i = 0; i < dist.cols; ++i) {
+        distVec[i] = dist.at<double>(i);
+    }
+
+    // Initialize the feature tracker and the filter
     dataStream ds;
 
-    // Todo: Hardcode the cam params --- to be fixed
-    float k[9] = {550.2499495823959, 0.0, 634.970638005679, 0.0, 548.8753588860187, 381.1055873002101, 0.0, 0.0, 1.0}; 
-    float d[4] = {-0.03584706281933589, 0.0077362868057236946,-0.04587986231938219, 0.04834004050933801};
-    ds.K_coef = cv::Mat(3, 3, CV_32F, k);
-    ds.D_coef = cv::Mat(1, 4, CV_32F, d);
-    
+    ds.camera = std::make_shared<GIFT::EquidistantCamera>(GIFT::EquidistantCamera(cv::Size(0, 0), K, distVec));
+
     VIOFilter::Settings filterSettings(eqf_vioConfig["eqf"]);
     ds.filter = VIOFilter(filterSettings);
     std::cout << "Filter initialized." << std::endl;
 
-    ds.featureTracker = GIFT::PointFeatureTracker(camera);
+    ds.featureTracker = GIFT::PointFeatureTracker(ds.camera);
     ds.featureTracker.settings.configure(eqf_vioConfig["GIFT"]);
-    ds.indoor_lighting = eqf_vioConfig["main"]["indoorLighting"].as<bool>();
+
+    //This checks to see if the default values for our camera parameters are being changed and changes them if required. 
+    if (eqf_vioConfig["main"]["indoorLighting"])
+    {
+        ds.indoor_lighting = eqf_vioConfig["main"]["indoorLighting"].as<bool>();
+    }
+    if (eqf_vioConfig["main"]["cameraXResolution"])
+    {
+        ds.cameraXResolution = eqf_vioConfig["main"]["cameraXResolution"].as<int>();
+    }
+    if (eqf_vioConfig["main"]["cameraYResolution"])
+    {
+        ds.cameraYResolution = eqf_vioConfig["main"]["cameraYResolution"].as<int>();
+    }
+    if (eqf_vioConfig["main"]["cameraFrameRate"])
+    {
+        ds.cameraFrameRate = eqf_vioConfig["main"]["cameraFrameRate"].as<int>();
+    }
+    if (eqf_vioConfig["main"]["saveImages"])
+    {
+        ds.save_images = eqf_vioConfig["main"]["saveImages"].as<bool>();
+    }
     std::cout << "Feature tracker initialized." << std::endl;
     
     // Open the given serial port
